@@ -1,98 +1,43 @@
-# WebApp para Gestão de Obras de Vedação Industrial
-### com Geolocalização e Inteligência Artificial
+# VedaçãoHub 4.2
 
-**Pablo Arman Schuller** — Engenharia de Software  
-Centro Universitário Católica de Santa Catarina — PAC Extensionista VIII · 2026
+Aplicação de gestão de obras de vedação industrial do curso de Engenharia de Software da Católica de Santa Catarina. Cada galpão reúne localização, histórico de visitas, fotos e autoria das alterações.
 
----
-
-## O Problema
-
-Empresas de vedação industrial geralmente atendem dezenas de galpões ao mesmo tempo. O controle dessas obras ainda depende de planilhas, cadernos e aplicativos genéricos — sem padronização, sem rastreabilidade e sem controle de qualidade dos dados.
-
-O que foi feito em cada galpão, quando foi feito e o que ainda falta muitas vezes existe só na memória de quem esteve lá. O resultado é retrabalho, atraso e perda de materiais.
-
----
-
-## A Solução
-
-Um WebApp centralizado que reúne em um único lugar:
-
-- 📋 **Histórico completo** de cada galpão — equipes, status, progresso
-- 📍 **Geolocalização** via Google Maps API — localização e rotas para os canteiros
-- 🤖 **Validação automática via IA** — bloqueia registros inconsistentes antes de salvar
-
-Qualquer equipe autorizada consegue assumir um serviço e saber exatamente o que aconteceu antes dela.
-
----
-
-## Inovação
-
-O diferencial exclusivo é o **módulo de validação semântica via IA** (API da Anthropic — Claude).
-
-Antes de salvar qualquer registro, o sistema analisa o contexto dos dados em relação ao histórico da obra e bloqueia inconsistências como:
-
-- Endereço incompatível com as coordenadas GPS
-- Percentual de conclusão menor que o registrado na visita anterior
-- Equipe responsável não cadastrada no sistema
-- Datas de visita anteriores à criação do galpão
-
-Nenhum sistema existente no mercado faz isso de forma integrada para o setor de vedação industrial.
-
----
+A equipe registra paredes, placas, vigas e pilares por serviço, quantidade e unidade, além de materiais utilizados, restantes ou necessários e impedimentos. Uma visita sem execução guarda o motivo. O histórico recupera também os percentuais informados por versões anteriores. [Contrato das visitas físicas](docs/visitas_fisicas.md)
 
 ## Arquitetura
 
+| Componente | Responsabilidade |
+|---|---|
+| React e Vite | Interface de cadastro, visitas e revisão humana |
+| React Leaflet e OpenStreetMap | Marcação e recuperação da localização. A API consulta Nominatim por busca explícita, com cache e limitação de frequência |
+| Express e Prisma | Autenticação JWT, autorização por perfil, regras de validação, auditoria e persistência |
+| PostgreSQL | Galpões, visitas, materiais registrados, usuários, rótulos e fotos |
+| FastAPI e scikit-learn | Inferência local sobre os relatos. As classes são execução, ausência de execução e situação indefinida |
+
+O Docker treina o classificador com o CSV sintético incluído no projeto. A avaliação com dados reais depende de relatos anonimizados e rotulados independentemente. O serviço registra alertas para revisão humana.
+
+## Testar a partir de um clone
+
+Com Node.js 22.12+ e Docker Compose v2, execute na raiz:
+
+```sh
+node scripts/ci.mjs
 ```
-[Frontend: React.js]
-        ↕ HTTPS
-[Backend: Node.js + Express]
-        ↕ SQL                    ↔ [Claude API — Anthropic]
-[Banco: PostgreSQL]
-        ↕
-[Google Maps JavaScript API]
-```
 
-| Camada | Tecnologia |
-|---|---|
-| Frontend | React.js |
-| Backend | Node.js + Express + JWT |
-| Banco de dados | PostgreSQL + Prisma ORM |
-| Validação IA | Anthropic Claude API |
-| Geolocalização | Google Maps JavaScript API |
-| Hospedagem | Railway / Render |
+O comando constrói as imagens, gera credenciais temporárias, cria um projeto Docker com PostgreSQL em memória e executa pytest, ESLint, testes Node e React, integração HTTP e o build Vite. Os testes da API passam pelo Express e gravam no PostgreSQL isolado. Os testes React de interação usam DOM de teste e respostas HTTP controladas.
 
----
+O limite global de cobertura de **linhas** é 75% no backend Express e 25% no frontend React. O backend inclui `api/src/**/*.js` e os scripts JS do Prisma. O frontend inclui todos os JS e JSX de `web/src/`. Arquivos sem execução entram no denominador. A suíte Python é informada separadamente. Consulte `api/coverage/index.html` e `web/coverage/react/index.html` após a execução. Cada diretório contém também LCOV e o resumo JSON. O GitHub Actions usa o mesmo comando em pushes e pull requests.
 
-## Resultados Esperados
+## Executar em instalação local nova
 
-| Métrica | Meta |
-|---|---|
-| Consistência dos dados | > 95% |
-| Redução no tempo de localização | ≥ 50% |
-| Usabilidade (SUS) | ≥ 70 pontos |
-| Retomada segura de obras | Validado com parceiro externo |
+1. Copie `.env.example` para `.env`. Preencha `POSTGRES_PASSWORD` e `JWT_SECRET` com valores aleatórios independentes. Use 32 bytes aleatórios em hexadecimal para cada um. Defina `CORS_ORIGIN=http://localhost:5173`.
+2. Execute `docker compose build` e `docker compose up -d --wait postgres`.
+3. Para o banco **novo e vazio**, execute `docker compose run --rm --no-deps api npx prisma migrate deploy`. Para um banco preexistente, confira o histórico Prisma e faça backup antes de qualquer migração. [Guia de compatibilidade](docs/visitas_fisicas.md)
+4. Disponibilize `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente do terminal. Execute `docker compose run --rm --no-deps -e ADMIN_EMAIL -e ADMIN_PASSWORD api node prisma/bootstrap-admin.js`. Use uma senha exclusiva e remova as duas variáveis do terminal ao terminar.
+5. Execute `docker compose up -d --wait` e abra http://localhost:5173. O ambiente local usa portas em loopback. O seed demonstrativo é explícito.
 
----
+O uso do Nominatim público exige uma única instância da API para o limite global de uma busca por segundo, identificação da aplicação, atribuição e cache. Pesquise endereços públicos e evite dados confidenciais. [Política de uso](https://operations.osmfoundation.org/policies/nominatim/)
 
-## Cronograma
+## Publicação em nuvem
 
-| Semana | Atividade |
-|---|---|
-| S1–S2 | Levantamento de requisitos |
-| S2–S3 | Projeto arquitetural e DER |
-| S3–S4 | Wireframes e protótipos |
-| S4–S5 | Implementação — módulo de cadastro |
-| S5–S6 | Implementação — módulo de geolocalização |
-| S6–S7 | Implementação — módulo de IA |
-| S7–S8 | Testes e ajustes |
-| S8–S9 | Validação com parceiro externo |
-| S9–S10 | Relatório e artigo final |
-
----
-
-## Contato
-
-**pablo.schuller@catolicasc.edu.br**  
-Curso de Engenharia de Software — Centro Universitário Católica de Santa Catarina  
-Jaraguá do Sul, SC, Brasil
+O arquivo `docker-compose.prod.example.yml` documenta serviços e suas configurações. A publicação do sistema exige provisionamento e validação em ambiente próprio. [Avaliação de implantação](docs/nuvem.md)
