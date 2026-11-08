@@ -1,0 +1,65 @@
+# Ambiente local de demonstração, não configurações prontas de produção.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vedacao
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      POSTGRES_DB: vedacao
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - vedacao_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL','pg_isready -U vedacao -d vedacao']
+      interval: 4s
+      retries: 20
+  ia:
+    build: ./ia
+    ports:
+      - '127.0.0.1:8000:8000'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD','python','-c','import urllib.request; urllib.request.urlopen("http://localhost:8000/saude")']
+      interval: 10s
+      retries: 10
+  api:
+    build: ./api
+    ports:
+      - '127.0.0.1:3001:3001'
+    environment:
+      DATABASE_URL: postgresql://vedacao:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}@postgres:5432/vedacao?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Configure JWT_SECRET no arquivo .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      IA_URL: http://ia:8000
+      NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-VedacaoHub/4.2 (cadastro de obras; uso interativo)}
+      NOMINATIM_CACHE_FILE: /app/cache/nominatim.json
+      DEMO_SEED: ${DEMO_SEED:-false}
+      DEMO_RESET_PASSWORDS: ${DEMO_RESET_PASSWORDS:-false}
+      DEMO_OWNER_EMAIL: ${DEMO_OWNER_EMAIL:-dono@demo.local}
+      DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:-}
+      DEMO_EMPLOYEE_PASSWORD: ${DEMO_EMPLOYEE_PASSWORD:-}
+      PORT: '3001'
+    depends_on:
+      postgres: {condition: service_healthy}
+      ia: {condition: service_healthy}
+    volumes:
+      - nominatim_cache:/app/cache
+    # Schema e seed são operações explícitas, com backup antes de atualização.
+    command: npm start
+    restart: unless-stopped
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: http://localhost:3001
+        VITE_OSM_TILE_URL: ${VITE_OSM_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
+    ports:
+      - '127.0.0.1:5173:5173'
+    depends_on:
+      - api
+volumes:
+  vedacao_pgdata:
+  nominatim_cache:

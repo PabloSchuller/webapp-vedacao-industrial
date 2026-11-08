@@ -1,0 +1,17 @@
+**/.env*
+.git
+**/node_modules
+**/coverage
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/*.pem
+**/*.key
+**/*.dump
+**/*.joblib
+**/*.log
+**/*.csv
+!dados/visitas_sinteticas.csv
+modelos
+backups
+artifacts
