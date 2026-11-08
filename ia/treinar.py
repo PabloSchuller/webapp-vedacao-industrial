@@ -8,6 +8,7 @@ import json
 import re
 import joblib
 import pandas as pd
+from contexto import marcar_contexto
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -35,11 +36,13 @@ def baseline(descricao):
 
 
 def candidatos():
-    words=lambda: TfidfVectorizer(lowercase=True,strip_accents='unicode',ngram_range=(1,2),sublinear_tf=True)
+    # Preserva siglas pontuadas como P.U. e contagens de um dígito.
+    words=lambda: TfidfVectorizer(preprocessor=marcar_contexto,ngram_range=(1,2),
+                                  token_pattern=r'(?u)\b\w{2,}\b|\b\d\b',sublinear_tf=True)
     return {
         'regressao_logistica_palavras': Pipeline([('tfidf',words()),('modelo',LogisticRegression(max_iter=2000,class_weight='balanced',random_state=SEMENTE))]),
         'naive_bayes_palavras': Pipeline([('tfidf',words()),('modelo',MultinomialNB(alpha=0.7))]),
-        'regressao_logistica_caracteres': Pipeline([('tfidf',TfidfVectorizer(strip_accents='unicode',analyzer='char_wb',ngram_range=(3,5),sublinear_tf=True)),('modelo',LogisticRegression(max_iter=2000,class_weight='balanced',random_state=SEMENTE))]),
+        'regressao_logistica_caracteres': Pipeline([('tfidf',TfidfVectorizer(preprocessor=marcar_contexto,analyzer='char_wb',ngram_range=(3,5),sublinear_tf=True)),('modelo',LogisticRegression(max_iter=2000,class_weight='balanced',random_state=SEMENTE))]),
         'linear_svc_calibrado': Pipeline([('tfidf',words()),('modelo',CalibratedClassifierCV(LinearSVC(class_weight='balanced',random_state=SEMENTE),cv=3))]),
     }
 
@@ -55,6 +58,13 @@ def executar():
 
     # Divisão de teste antes da escolha do modelo. O conjunto de teste permanece intocado.
     xt,xv,yt,yv = train_test_split(df['descricao'],df['classe'],test_size=0.25,random_state=SEMENTE,stratify=df['classe'])
+    complemento = pd.read_csv(BASE / 'dados' / 'complemento_treino.csv')
+    if (complemento.isna().any().any() or complemento.descricao.duplicated().any()
+            or complemento.descricao.isin(df.descricao).any()
+            or not set(complemento.classe).issubset(CLASSES)):
+        raise ValueError('Complemento de treino duplicado ou inválido.')
+    xt = pd.concat([xt, complemento.descricao], ignore_index=True)
+    yt = pd.concat([yt, complemento.classe], ignore_index=True)
     cv=StratifiedKFold(n_splits=3,shuffle=True,random_state=SEMENTE)
     modelos=candidatos()
     resultados_cv={}
@@ -69,7 +79,7 @@ def executar():
     relatorio={
         'aviso':'MÉTRICAS EXPLORATÓRIAS, base de dados sintéticos. Não representam validação real com clientes.',
         'tipo_dados':'sinteticos', 'semente':SEMENTE,
-        'registros':len(df),'treino':len(xt),'teste':len(xv),
+        'registros':len(xt)+len(xv),'treino':len(xt),'teste':len(xv),
         'modelo_selecionado':melhor_nome,
         'selecao':'3-fold CV apenas no treino por F1 macro; avaliação final no conjunto de teste separado',
         'comparacao_cv':resultados_cv,

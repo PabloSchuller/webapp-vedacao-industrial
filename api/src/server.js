@@ -268,7 +268,8 @@ async function validarVisita(d,galpao) {
   const ultima=await prisma.visita.findFirst({where:{galpaoId:galpao.id,revisao:'APROVADA'},orderBy:[{dataVisita:'desc'},{criadoEm:'desc'}],select:{dataVisita:true}});
   const regras=validarObjetivamente({dataInicio:dataIso(galpao.dataInicio),dataVisita:d.dataVisita,ultimaVisita:ultima?dataIso(ultima.dataVisita):null,progressoAntes:galpao.progressoAtual,progressoDepois:d.progressoDepois,justificativa:d.justificativa});
   const ia=await consultarIA(d,galpao.progressoAtual);
-  if (d.registroFisico && ia.classificacao_ia && ia.classificacao_ia !== d.registroFisico.situacao) {
+  const execucaoConfirmada=d.registroFisico?.situacao==='TRABALHO_EXECUTADO' && ia.execucao_corroborada;
+  if (d.registroFisico && ia.classificacao_ia && ia.classificacao_ia !== d.registroFisico.situacao && !execucaoConfirmada) {
     regras.avisos.push('A interpretação do relato pela IA diverge da situação informada. Confira o registro físico.');
   }
   const temGps=d.gpsLatitude!=null && d.gpsLongitude!=null && galpao.latitude!=null && galpao.longitude!=null;
