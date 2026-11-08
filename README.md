@@ -1,4 +1,4 @@
-# VedaçãoHub 4.2
+# VedaçãoHub
 
 Aplicação de gestão de obras de vedação industrial do curso de Engenharia de Software da Católica de Santa Catarina. Cada galpão reúne localização, histórico de visitas, fotos e autoria das alterações.
 
