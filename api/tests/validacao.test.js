@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validarObjetivamente, combinarValidacao, distanciaMetros} from '../src/validacao.js';
+const visita = { dataInicio:'2026-01-01', dataVisita:'2026-03-01', ultimaVisita:'2026-02-01', progressoAntes:40, progressoDepois:60, justificativa:'' };
+test('data anterior ao início bloqueia',()=>assert.equal(validarObjetivamente({...visita,dataVisita:'2025-01-01'}).bloqueios.length,2));
+test('progresso regressivo sem justificativa bloqueia',()=>assert.match(validarObjetivamente({...visita,progressoDepois:30}).bloqueios[0],/justificativa/));
+test('regressão justificada exige revisão',()=>assert.equal(validarObjetivamente({...visita,progressoDepois:30,justificativa:'Recontagem de escopo'}).avisos.length,1));
+test('visita válida passa nas regras',()=>assert.deepEqual(validarObjetivamente(visita),{bloqueios:[],avisos:[]}));
+test('IA ausente exige revisão',()=>assert.equal(combinarValidacao({bloqueios:[],avisos:[]},{indisponivel:true},null).status,'REVISAR'));
+test('GPS distante exige revisão',()=>assert.equal(combinarValidacao({bloqueios:[],avisos:[]},null,350).status,'REVISAR'));
+test('distância mesmo local é zero',()=>assert.equal(distanciaMetros(-26.49,-49.07,-26.49,-49.07),0));
