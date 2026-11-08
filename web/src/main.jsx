@@ -264,15 +264,38 @@ function LixeiraGalpoes({token,onGo}){
   }
   return <><SectionTitle eyebrow="ADMINISTRAÇÃO" title="Lixeira de galpões" subtitle="Galpões excluídos logicamente. Os dados históricos e a auditoria permanecem guardados." action={<button className="btn outline" onClick={()=>onGo('galpoes')}><ArrowLeft size={16}/> Voltar aos galpões</button>}/><ErrorBox message={erro}/>{lista===null?<Loading/>:lista.length===0?<div className="empty large-empty">Nenhum galpão excluído.</div>:<section className="surface"><div className="items">{lista.map(g=><div key={g.id} className="archived-row"><div><h3>{g.nome}</h3><p>{g.cliente} · {g.endereco}</p><small>Excluído em {fmtDate(g.excluidoEm)} · {g._count?.visitas||0} visita(s) preservadas</small><p><strong>Motivo:</strong> {g.motivoExclusao||'Não informado'}</p></div><button className="btn outline" disabled={busy===g.id} onClick={()=>restaurar(g)}><RotateCcw size={16}/>{busy===g.id?'Restaurando…':'Restaurar'}</button></div>)}</div></section>}</>;
 }
-function Pendencias({token,onGo}){
+function Pendencias({token}){
   const[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(''),[reload,setReload]=useState(0),[comentarios,setComentarios]=useState({});
-  useEffect(()=>{request('/visitas/pendentes',{token}).then(setData).catch(e=>setError(errorText(e)))},[token,reload]);
+  const [lista,setLista]=useState('pendentes'),[excluirId,setExcluirId]=useState(null);
+  const [motivo,setMotivo]=useState(''),[sucesso,setSucesso]=useState('');
+  useEffect(()=>{
+    let ativa=true;
+    request('/visitas/'+lista,{token}).then(visitas=>{if(ativa)setData(visitas)})
+      .catch(e=>{if(ativa)setError(errorText(e))});
+    return ()=>{ativa=false};
+  },[token,reload,lista]);
+  async function confirmarExclusao(e){
+    e.preventDefault();
+    if(!excluirId || motivo.trim().length<5 || busy)return;
+    setBusy(excluirId);setError('');
+    try{
+      await request('/visitas/'+excluirId,{token,method:'DELETE',body:{motivo:motivo.trim()}});
+      setData(visitas=>visitas.filter(v=>v.id!==excluirId));
+      setExcluirId(null);setMotivo('');setSucesso('Visita excluída.');
+    }catch(e){setError(errorText(e))}finally{setBusy('')}
+  }
   async function decidir(v,decisao){const comentario=(comentarios[v.id]||'').trim();if(comentario.length<3){setError('Informe uma justificativa com pelo menos 3 caracteres.');return;}setBusy(v.id);setError('');try{await request(`/visitas/${v.id}/revisar`,{token,method:'PATCH',body:{decisao,comentario}});setReload(s=>s+1);}catch(e){setError(errorText(e));}finally{setBusy('')}}
   return <>
-    <SectionTitle eyebrow="QUALIDADE DOS DADOS" title="Visitas pendentes" subtitle="Confira os relatos e as medições das visitas sinalizadas."/>
+    <SectionTitle eyebrow="QUALIDADE DOS DADOS" title="Revisões" subtitle="Confira os relatos e as medições das visitas sinalizadas."/>
     <ErrorBox message={error}/>
+    <label className="review-filter">Exibir visitas
+      <select value={lista} disabled={Boolean(busy)} onChange={e=>{
+        setData(null);setLista(e.target.value);setExcluirId(null);setError('');setSucesso('');
+      }}><option value="pendentes">Pendentes</option><option value="rejeitadas">Rejeitadas</option></select>
+    </label>
+    {sucesso && <p role="status" className="feedback success">{sucesso}</p>}
     {!data ? <Loading/> : data.length===0 ?
-      <div className="empty large-empty"><ShieldCheck size={34}/> Nenhuma visita aguardando revisão.</div> :
+      <div className="empty large-empty"><ShieldCheck size={34}/> {lista==='pendentes'?'Nenhuma visita aguardando revisão.':'Nenhuma visita rejeitada.'}</div> :
       <div className="pending-list">{data.map(v=>
         <section className="surface pending-card" key={v.id} aria-labelledby={`revisao-${v.id}`}>
           <header className="review-heading">
@@ -280,7 +303,7 @@ function Pendencias({token,onGo}){
               <h2 id={`revisao-${v.id}`}>{v.galpao.nome}</h2>
               <span>{fmtDate(v.dataVisita)} · {v.autor.nome}</span>
             </div>
-            <Pill status="PENDENTE"/>
+            <Pill status={v.revisao}/>
           </header>
           <div className="review-report">
             <HistoricoFisico visita={v}/>
@@ -291,16 +314,29 @@ function Pendencias({token,onGo}){
             <AlertTriangle size={18} aria-hidden="true"/>
             <ul>{v.avisos.map((aviso,i)=><li key={i}>{aviso}</li>)}</ul>
           </div>}
-          <div className="form review-controls">
-            <label>Justificativa da revisão
-              <textarea rows={3} minLength={3} maxLength={2000} value={comentarios[v.id]||''}
-                onChange={e=>setComentarios(c=>({...c,[v.id]:e.target.value}))}/>
+          {excluirId===v.id ? <form className="form review-controls" onSubmit={confirmarExclusao}>
+            <label>Motivo da exclusão
+              <textarea autoFocus required minLength={5} maxLength={500} rows={2} value={motivo}
+                onChange={e=>setMotivo(e.target.value)}/>
             </label>
             <div className="form-actions">
-              <button className="btn outline" disabled={busy===v.id} onClick={()=>decidir(v,'REJEITAR')}>Rejeitar</button>
-              <button className="btn primary" disabled={busy===v.id} onClick={()=>decidir(v,'APROVAR')}><CheckCircle2 size={16}/> Aprovar visita</button>
+              <button type="button" className="btn outline" disabled={Boolean(busy)} onClick={()=>{setExcluirId(null);setError('')}}>Cancelar</button>
+              <button className="btn outline" disabled={Boolean(busy)||motivo.trim().length<5}>Confirmar exclusão</button>
             </div>
-          </div>
+          </form> : <div className="form review-controls">
+            {v.revisao==='PENDENTE' && <label>Justificativa da revisão
+              <textarea rows={3} minLength={3} maxLength={2000} value={comentarios[v.id]||''}
+                onChange={e=>setComentarios(c=>({...c,[v.id]:e.target.value}))}/>
+            </label>}
+            <div className="form-actions">
+              <button className="btn outline exclude-visit" disabled={Boolean(busy)} onClick={()=>{
+                setExcluirId(v.id);setMotivo('');setError('');setSucesso('');
+              }}><Trash2 size={15}/> Excluir visita</button>
+              {v.revisao==='PENDENTE' && <>
+              <button className="btn outline" disabled={Boolean(busy)} onClick={()=>decidir(v,'REJEITAR')}>Rejeitar</button>
+              <button className="btn primary" disabled={Boolean(busy)} onClick={()=>decidir(v,'APROVAR')}><CheckCircle2 size={16}/> Aprovar visita</button></>}
+            </div>
+          </div>}
         </section>)}</div>}
   </>
 }

@@ -63,6 +63,35 @@ function sessaoTeste(){
   return ['teste',btoa(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})),'teste'].join('.');
 }
 
+test.each(['PENDENTE','REJEITADA'])('confirma exclusão de visita %s e atualiza a lista',async revisao=>{
+  sessionStorage.setItem('vedacao_session',JSON.stringify({token:sessaoTeste(),usuario:{nome:'Teste',papel:'DONO'}}));
+  window.location.hash='#/pendencias';
+  const visita={id:'visita',galpao:{nome:'Galpão teste'},autor:{nome:'Autor'},revisao,avisos:[],descricao:'Relato da visita'};
+  const motivos=[];
+  vi.stubGlobal('fetch',vi.fn(async(url,options)=>{
+    if(options.method==='DELETE'){
+      motivos.push(JSON.parse(options.body).motivo);
+      return motivos.length===1 ? Response.json({erro:'Falha de teste'},{status:409}) : Response.json({});
+    }
+    return Response.json(url.endsWith(revisao==='PENDENTE'?'pendentes':'rejeitadas')?[visita]:[]);
+  }));
+  render(<App/>);
+  if(revisao==='REJEITADA')fireEvent.change(screen.getByLabelText('Exibir visitas'),{target:{value:'rejeitadas'}});
+  fireEvent.click(await screen.findByText('Excluir visita'));
+  expect(screen.getByText('Confirmar exclusão').disabled).toBe(true);
+  fireEvent.click(screen.getByText('Cancelar'));
+  expect(motivos).toEqual([]);
+  fireEvent.click(screen.getByText('Excluir visita'));
+  fireEvent.change(screen.getByLabelText('Motivo da exclusão'),{target:{value:'Lançamento duplicado'}});
+  fireEvent.click(screen.getByText('Confirmar exclusão'));
+  await screen.findByText('Falha de teste');
+  expect(screen.getByText('Galpão teste')).toBeTruthy();
+  fireEvent.click(screen.getByText('Confirmar exclusão'));
+  await screen.findByText('Visita excluída.');
+  expect(motivos).toEqual(['Lançamento duplicado','Lançamento duplicado']);
+  expect(screen.queryByText('Galpão teste')).toBeNull();
+});
+
 test('visita sem execução envia o motivo, recarrega o histórico',async()=>{
   const id='00000000-0000-4000-8000-000000000001';
   const usuario={nome:'Técnico',papel:'FUNCIONARIO',id:'tecnico'};

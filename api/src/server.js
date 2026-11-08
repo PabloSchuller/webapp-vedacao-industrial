@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import {ZodError} from 'zod';
 import {prisma} from './db.js';
 import {autenticacao, somenteDono} from './auth.js';
-import {loginSchema,usuarioSchema,galpaoSchema,galpaoEdicaoSchema,alterarUsuarioSchema,exclusaoGalpaoSchema,alterarSenhaSchema,visitaSchema,revisaoSchema,dataDb,dataIso,fotoSchema,rotuloVisitaSchema,filtrosVisitaSchema} from './schemas.js';
+import {loginSchema,usuarioSchema,galpaoSchema,galpaoEdicaoSchema,alterarUsuarioSchema,exclusaoSchema,alterarSenhaSchema,visitaSchema,revisaoSchema,dataDb,dataIso,fotoSchema,rotuloVisitaSchema,filtrosVisitaSchema} from './schemas.js';
 import {validarObjetivamente,combinarValidacao,distanciaMetros,validarEdicaoGalpao} from './validacao.js';
 import {csvCelula} from './csv.js';
 import {verificarExclusao,verificarRestauracao} from './arquivamento.js';
@@ -31,6 +31,12 @@ const projection={id:true,nome:true,email:true,papel:true,ativo:true};
 const fail=(status,msg)=>{const e=new Error(msg);e.httpStatus=status;throw e;};
 const audit=(tx,userId,entidade,id,acao,detalhes)=>tx.auditoria.create({data:{usuarioId:userId,entidade,entidadeId:id,acao,detalhes}});
 const isPrismaConflict=(e)=>['P2034','P2025'].includes(e.code);
+
+async function bloquearVisitaAtiva(tx,id){
+  // Serializa alterações nas evidências com a exclusão da visita.
+  const linhas=await tx.$queryRaw`SELECT id FROM "Visita" WHERE id = ${id} AND "excluidaEm" IS NULL FOR UPDATE`;
+  if(!linhas.length) fail(404,'Visita não encontrada.');
+}
 
 app.get('/saude',asyncRoute(async(req,res)=>{
   await prisma.$queryRaw`SELECT 1`;
@@ -94,14 +100,14 @@ app.patch('/usuarios/:id/ativo',somenteDono,asyncRoute(async(req,res)=>{
 
 // Lixeira reversível: preserva visitas, auditoria e referências para estudo de caso.
 app.get('/galpoes/excluidos',somenteDono,asyncRoute(async(req,res)=>{
-  res.json(await prisma.galpao.findMany({where:{excluidoEm:{not:null}},orderBy:{excluidoEm:'desc'},include:{_count:{select:{visitas:true}}}}));
+  res.json(await prisma.galpao.findMany({where:{excluidoEm:{not:null}},orderBy:{excluidoEm:'desc'},include:{_count:{select:{visitas:{where:{excluidaEm:null}}}}}}));
 }));
 app.delete('/galpoes/:id',somenteDono,asyncRoute(async(req,res)=>{
-  const {motivo}=parse(exclusaoGalpaoSchema,req.body);
+  const {motivo}=parse(exclusaoSchema,req.body);
   const item=await prisma.$transaction(async tx=>{
     const galpao=await tx.galpao.findUnique({where:{id:req.params.id}});
     if(!galpao || galpao.excluidoEm) fail(404,'Galpão não encontrado entre os ativos.');
-    const pendentes=await tx.visita.count({where:{galpaoId:galpao.id,revisao:'PENDENTE'}});
+    const pendentes=await tx.visita.count({where:{galpaoId:galpao.id,revisao:'PENDENTE',excluidaEm:null}});
     const politica=verificarExclusao(galpao,pendentes);
     if(politica.erro) fail(politica.status,politica.erro);
     const atualizado=await tx.galpao.updateMany({where:{id:galpao.id,excluidoEm:null},data:{excluidoEm:new Date(),motivoExclusao:motivo,excluidoPorId:req.usuario.id}});
@@ -125,11 +131,11 @@ app.patch('/galpoes/:id/restaurar',somenteDono,asyncRoute(async(req,res)=>{
 }));
 
 app.get('/galpoes',asyncRoute(async(req,res)=>{
-  const galpoes=await prisma.galpao.findMany({where:{excluidoEm:null},orderBy:{atualizadoEm:'desc'},include:{_count:{select:{visitas:true}}}});
+  const galpoes=await prisma.galpao.findMany({where:{excluidoEm:null},orderBy:{atualizadoEm:'desc'},include:{_count:{select:{visitas:{where:{excluidaEm:null}}}}}});
   res.json(galpoes);
 }));
 app.get('/galpoes/:id',asyncRoute(async(req,res)=>{
-  const g=await prisma.galpao.findUnique({where:{id:req.params.id},include:{visitas:{include:{autor:{select:projection},revisor:{select:projection}},orderBy:[{dataVisita:'desc'},{criadoEm:'desc'}]}}});
+  const g=await prisma.galpao.findUnique({where:{id:req.params.id},include:{visitas:{where:{excluidaEm:null},include:{autor:{select:projection},revisor:{select:projection}},orderBy:[{dataVisita:'desc'},{criadoEm:'desc'}]}}});
   if(!g || g.excluidoEm) fail(404,'Galpão não encontrado.');
   res.json(g);
 }));
@@ -149,7 +155,7 @@ app.patch('/galpoes/:id',somenteDono,asyncRoute(async(req,res)=>{
   const atualizado=await prisma.$transaction(async tx=>{
     const atual=await tx.galpao.findUnique({where:{id:req.params.id}});
     if(!atual || atual.excluidoEm) fail(404,'Galpão não encontrado.');
-    const primeira=await tx.visita.findFirst({where:{galpaoId:atual.id},orderBy:{dataVisita:'asc'},select:{dataVisita:true}});
+    const primeira=await tx.visita.findFirst({where:{galpaoId:atual.id,excluidaEm:null},orderBy:{dataVisita:'asc'},select:{dataVisita:true}});
     const bloqueios=validarEdicaoGalpao(atual,d,primeira?dataIso(primeira.dataVisita):null);
     if(bloqueios.length) fail(422,bloqueios.join(' '));
     const dados={...d,dataInicio:inicio,latitude:d.latitude??null,longitude:d.longitude??null};
@@ -177,7 +183,7 @@ app.get('/galpoes/:id/auditoria',somenteDono,asyncRoute(async(req,res)=>{
 // Evidências fotográficas por visita. Dados armazenados no PostgreSQL para
 // preservar fotos mesmo quando a API é recriada pelo Docker.
 app.get('/visitas/:id/fotos',asyncRoute(async(req,res)=>{
-  const visita=await prisma.visita.findUnique({where:{id:req.params.id},select:{id:true,galpao:{select:{excluidoEm:true}}}});
+  const visita=await prisma.visita.findUnique({where:{id:req.params.id,excluidaEm:null},select:{id:true,galpao:{select:{excluidoEm:true}}}});
   if(!visita || (visita.galpao.excluidoEm && req.usuario.papel!=='DONO')) fail(404,'Visita não encontrada.');
   res.json(await prisma.fotoVisita.findMany({where:{visitaId:visita.id,excluidaEm:null},orderBy:{criadoEm:'desc'},select:fotoProjection}));
 }));
@@ -186,6 +192,7 @@ app.post('/visitas/:id/fotos',rateLimit({windowMs:15*60*1000,limit:30,standardHe
   let dados;
   try{dados=validarFoto(d)}catch(e){fail(422,e.message)}
   const foto=await prisma.$transaction(async tx=>{
+    await bloquearVisitaAtiva(tx,req.params.id);
     const visita=await tx.visita.findUnique({where:{id:req.params.id},include:{galpao:{select:{excluidoEm:true}}}});
     if(!visita||visita.galpao.excluidoEm)fail(404,'Visita não encontrada ou galpão arquivado.');
     if(req.usuario.papel!=='DONO'&&visita.autorId!==req.usuario.id) fail(403,'Somente o autor ou o proprietário pode anexar evidências.');
@@ -198,8 +205,8 @@ app.post('/visitas/:id/fotos',rateLimit({windowMs:15*60*1000,limit:30,standardHe
   res.status(201).json(foto);
 }));
 app.get('/fotos/:id/arquivo',asyncRoute(async(req,res)=>{
-  const foto=await prisma.fotoVisita.findUnique({where:{id:req.params.id},include:{visita:{select:{galpao:{select:{excluidoEm:true}}}}}});
-  if(!foto||foto.excluidaEm||(foto.visita.galpao.excluidoEm&&req.usuario.papel!=='DONO'))fail(404,'Foto não encontrada.');
+  const foto=await prisma.fotoVisita.findUnique({where:{id:req.params.id},include:{visita:{select:{excluidaEm:true,galpao:{select:{excluidoEm:true}}}}}});
+  if(!foto||foto.excluidaEm||foto.visita.excluidaEm||(foto.visita.galpao.excluidoEm&&req.usuario.papel!=='DONO'))fail(404,'Foto não encontrada.');
   res.set('Content-Type',foto.mime);
   res.set('Content-Disposition','inline; filename="evidencia"');
   res.set('Cache-Control','private, no-store');
@@ -208,8 +215,9 @@ app.get('/fotos/:id/arquivo',asyncRoute(async(req,res)=>{
 app.delete('/fotos/:id',asyncRoute(async(req,res)=>{
   await prisma.$transaction(async tx=>{
     const foto=await tx.fotoVisita.findUnique({where:{id:req.params.id},include:{visita:{include:{galpao:{select:{excluidoEm:true}}}}}});
-    if(!foto||foto.excluidaEm||foto.visita.galpao.excluidoEm)fail(404,'Foto não encontrada.');
+    if(!foto||foto.excluidaEm||foto.visita.excluidaEm||foto.visita.galpao.excluidoEm)fail(404,'Foto não encontrada.');
     if(req.usuario.papel!=='DONO' && foto.autorId!==req.usuario.id)fail(403,'Sem permissão para remover esta evidência.');
+    await bloquearVisitaAtiva(tx,foto.visitaId);
     await tx.fotoVisita.update({where:{id:foto.id},data:{excluidaEm:new Date()}});
     await audit(tx,req.usuario.id,'VISITA',foto.visitaId,'REMOVER_FOTO',{fotoId:foto.id,nome:foto.nome,modo:'logico'});
   });
@@ -219,11 +227,12 @@ app.delete('/fotos/:id',asyncRoute(async(req,res)=>{
 // Rotulagem manual de relatos: informação gerenciada pelo proprietário.
 // Essa avaliação não muda automaticamente o modelo nem o progresso da obra.
 app.get('/visitas/:id/rotulo',somenteDono,asyncRoute(async(req,res)=>{
-  res.json(await prisma.rotuloVisita.findUnique({where:{visitaId:req.params.id}}));
+  res.json(await prisma.rotuloVisita.findFirst({where:{visitaId:req.params.id,visita:{excluidaEm:null}}}));
 }));
 app.put('/visitas/:id/rotulo',somenteDono,asyncRoute(async(req,res)=>{
   const d=parse(rotuloVisitaSchema,req.body);
   const rotulo=await prisma.$transaction(async tx=>{
+    await bloquearVisitaAtiva(tx,req.params.id);
     const visita=await tx.visita.findUnique({where:{id:req.params.id},select:{id:true}});
     if(!visita)fail(404,'Visita não encontrada.');
     const r=await tx.rotuloVisita.upsert({where:{visitaId:visita.id},create:{visitaId:visita.id,usuarioId:req.usuario.id,...d},update:{...d,usuarioId:req.usuario.id}});
@@ -234,6 +243,7 @@ app.put('/visitas/:id/rotulo',somenteDono,asyncRoute(async(req,res)=>{
 }));
 app.get('/relatorios/relatos_rotulados.csv',somenteDono,asyncRoute(async(req,res)=>{
   const rotulos=await prisma.rotuloVisita.findMany({
+    where:{visita:{excluidaEm:null}},
     orderBy:{criadoEm:'asc'},
     include:{visita:{include:{galpao:{select:{id:true,nome:true}}}}}
   });
@@ -247,7 +257,7 @@ app.get('/relatorios/relatos_rotulados.csv',somenteDono,asyncRoute(async(req,res
 
 // Relatório imprimível do galpão. Ctrl+P no navegador gera um PDF.
 app.get('/relatorios/galpoes/:id/imprimir',somenteDono,asyncRoute(async(req,res)=>{
-  const g=await prisma.galpao.findUnique({where:{id:req.params.id},include:{visitas:{include:{autor:{select:{nome:true}}}}}});
+  const g=await prisma.galpao.findUnique({where:{id:req.params.id},include:{visitas:{where:{excluidaEm:null},include:{autor:{select:{nome:true}}}}}});
   if(!g)fail(404,'Galpão não encontrado.');
   res.set('Content-Type','text/html; charset=utf-8');
   res.set('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
@@ -257,12 +267,31 @@ app.get('/relatorios/galpoes/:id/imprimir',somenteDono,asyncRoute(async(req,res)
 
 app.get('/indicadores',asyncRoute(async(req,res)=>{
   const [total,concluidos,pendentes,ultimas]=await Promise.all([
-    prisma.galpao.count({where:{excluidoEm:null}}),prisma.galpao.count({where:{status:'CONCLUIDA',excluidoEm:null}}),prisma.visita.count({where:{revisao:'PENDENTE',galpao:{is:{excluidoEm:null}}}}),
-    prisma.visita.findMany({where:{galpao:{is:{excluidoEm:null}}},take:6,orderBy:{criadoEm:'desc'},include:{galpao:{select:{id:true,nome:true}},autor:{select:{nome:true}}}})
+    prisma.galpao.count({where:{excluidoEm:null}}),prisma.galpao.count({where:{status:'CONCLUIDA',excluidoEm:null}}),prisma.visita.count({where:{excluidaEm:null,revisao:'PENDENTE',galpao:{is:{excluidoEm:null}}}}),
+    prisma.visita.findMany({where:{excluidaEm:null,galpao:{is:{excluidoEm:null}}},take:6,orderBy:{criadoEm:'desc'},include:{galpao:{select:{id:true,nome:true}},autor:{select:{nome:true}}}})
   ]);
   res.json({total,concluidos,pendentes,ultimas});
 }));
-app.get('/visitas/pendentes',somenteDono,asyncRoute(async(req,res)=>res.json(await prisma.visita.findMany({where:{revisao:'PENDENTE',galpao:{is:{excluidoEm:null}}},orderBy:{criadoEm:'asc'},include:{galpao:{select:{id:true,nome:true}},autor:{select:projection}}}))));
+for(const [rota,revisao] of [['pendentes','PENDENTE'],['rejeitadas','REJEITADA']]){
+  app.get('/visitas/'+rota,somenteDono,asyncRoute(async(req,res)=>{
+    res.json(await prisma.visita.findMany({where:{excluidaEm:null,revisao,galpao:{is:{excluidoEm:null}}},
+      orderBy:{criadoEm:'asc'},include:{galpao:{select:{id:true,nome:true}},autor:{select:projection}}}));
+  }));
+}
+
+app.delete('/visitas/:id',somenteDono,asyncRoute(async(req,res)=>{
+  const {motivo}=parse(exclusaoSchema,req.body);
+  await prisma.$transaction(async tx=>{
+    const id=req.params.id;
+    const resultado=await tx.visita.updateMany({
+      where:{id,excluidaEm:null,revisao:{in:['PENDENTE','REJEITADA']},galpao:{excluidoEm:null}},
+      data:{excluidaEm:new Date()}
+    });
+    if(!resultado.count) fail(409,'A visita não está disponível para exclusão.');
+    await audit(tx,req.usuario.id,'VISITA',id,'EXCLUIR',{motivo,modo:'logico'});
+  });
+  res.json({mensagem:'Visita excluída.'});
+}));
 
 async function validarVisita(d,galpao) {
   const ultima=await prisma.visita.findFirst({where:{galpaoId:galpao.id,revisao:'APROVADA'},orderBy:[{dataVisita:'desc'},{criadoEm:'desc'}],select:{dataVisita:true}});
@@ -293,7 +322,7 @@ app.post('/visitas',asyncRoute(async(req,res)=>{
   if(resultado.status==='BLOQUEAR') return res.status(422).json({erro:'Registro bloqueado.',validacao:resultado});
   const revisao=resultado.status==='REVISAR'?'PENDENTE':'APROVADA';
   const visita=await prisma.$transaction(async tx=>{
-    const pendente=await tx.visita.findFirst({where:{galpaoId:d.galpaoId,revisao:'PENDENTE'},select:{id:true}});
+    const pendente=await tx.visita.findFirst({where:{galpaoId:d.galpaoId,revisao:'PENDENTE',excluidaEm:null},select:{id:true}});
     if(pendente) fail(409,'Existe uma visita aguardando revisão neste galpão.');
     const atual=await tx.galpao.findUnique({where:{id:d.galpaoId}});
     if(!atual || atual.excluidoEm) fail(409,'Galpão arquivado; não é possível registrar visitas.');
@@ -316,7 +345,7 @@ app.post('/visitas',asyncRoute(async(req,res)=>{
 app.patch('/visitas/:id/revisar',somenteDono,asyncRoute(async(req,res)=>{
   const {decisao,comentario}=parse(revisaoSchema,req.body);
   const revisada=await prisma.$transaction(async tx=>{
-    const v=await tx.visita.findUnique({where:{id:req.params.id}});
+    const v=await tx.visita.findUnique({where:{id:req.params.id,excluidaEm:null}});
     if(!v) fail(404,'Visita não encontrada.');
     if(v.revisao!=='PENDENTE') fail(409,'Esta visita já foi revisada.');
     const galpao=await tx.galpao.findUnique({where:{id:v.galpaoId},select:{excluidoEm:true}});
@@ -333,7 +362,7 @@ app.patch('/visitas/:id/revisar',somenteDono,asyncRoute(async(req,res)=>{
 }));
 // Exportação controlada de evidências para análise. Protege células contra fórmulas em planilhas.
 app.get('/relatorios/visitas.csv',somenteDono,asyncRoute(async(req,res)=>{
-  const visitas=await prisma.visita.findMany({orderBy:[{dataVisita:'asc'},{criadoEm:'asc'}],include:{galpao:{select:{nome:true,cliente:true}},autor:{select:{nome:true}},revisor:{select:{nome:true}}}});
+  const visitas=await prisma.visita.findMany({where:{excluidaEm:null},orderBy:[{dataVisita:'asc'},{criadoEm:'asc'}],include:{galpao:{select:{nome:true,cliente:true}},autor:{select:{nome:true}},revisor:{select:{nome:true}}}});
   const cabecalho=['id','galpao','cliente','data_visita','autor','descricao','progresso_antes','progresso_depois','revisao','classe_ia','confianca_ia','avisos','bloqueios','revisor','comentario_revisao','proximos_passos','justificativa','registro_fisico_json'];
   const linhas=visitas.map(v=>[v.id,v.galpao.nome,v.galpao.cliente,dataIso(v.dataVisita),v.autor.nome,v.descricao,v.progressoAntes,v.progressoDepois,v.revisao,v.iaClasse,v.iaConfianca,Array.isArray(v.avisos)?v.avisos.join(' | '):'',Array.isArray(v.bloqueios)?v.bloqueios.join(' | '):'',v.revisor?.nome,v.comentarioRevisao,v.proximosPassos,v.justificativa,v.registroFisico ? JSON.stringify(v.registroFisico) : '']);
   const csv='\uFEFF'+[cabecalho,...linhas].map(l=>l.map(csvCelula).join(';')).join('\r\n')+'\r\n';

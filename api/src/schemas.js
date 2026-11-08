@@ -17,7 +17,7 @@ export const galpaoEdicaoSchema = z.object({
   latitude:coord(-90,90),longitude:coord(-180,180)
 }).refine(v=>(v.latitude==null)===(v.longitude==null),{message:'Latitude e longitude devem ser informadas juntas.'});
 export const alterarUsuarioSchema = z.object({ativo:z.boolean()});
-export const exclusaoGalpaoSchema = z.object({motivo:z.string().trim().min(5,'Informe uma justificativa com pelo menos 5 caracteres.').max(500)});
+export const exclusaoSchema = z.object({motivo:z.string().trim().min(5,'Informe uma justificativa com pelo menos 5 caracteres.').max(500)});
 export const alterarSenhaSchema = z.object({senhaAtual:z.string().min(1),senhaNova:novaSenha}).refine(v=>v.senhaAtual!==v.senhaNova,{message:'A nova senha deve ser diferente da atual.',path:['senhaNova']});
 export const visitaSchema = z.object({galpaoId:z.string().uuid(),dataVisita:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),descricao:z.string().trim().min(10).max(3000),registroFisico:registroFisicoSchema.optional(),progressoDepois:z.number().min(0).max(100).optional(),justificativa:z.string().max(2000).optional().default(''),proximosPassos:z.string().max(2000).optional().default(''),gpsLatitude:coord(-90,90),gpsLongitude:coord(-180,180)}).refine(v=>(v.gpsLatitude==null)===(v.gpsLongitude==null),{message:'Coordenadas GPS devem ser informadas juntas.'}).refine(v=>Boolean(v.registroFisico) !== (v.progressoDepois !== undefined), {message:'Informe o registro físico da visita ou o percentual legado, em formatos separados.'});
 export const revisaoSchema = z.object({decisao:z.enum(['APROVAR','REJEITAR']),comentario:z.string().trim().min(3).max(2000)});

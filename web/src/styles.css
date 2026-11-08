@@ -90,5 +90,8 @@
 .pending-card .visit-alert svg { margin-top: 2px; }
 .pending-card .visit-alert ul { list-style: none; margin: 0; padding: 0; }
 .pending-card .visit-alert li + li { margin-top: 6px; }
+.review-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; font-weight: 700; }
+.review-filter select { padding: 8px; border: 1px solid #dce3ee; border-radius: 8px; background: white; }
+.exclude-visit { margin-right: auto; }
 .review-controls label { font-size: 14px; }
 .pending-card .form-actions { margin: 0; padding-top: 16px; }
