@@ -1,0 +1,1 @@
+ALTER TABLE "Visita" ADD COLUMN "excluidaEm" TIMESTAMP(3);

@@ -82,6 +82,7 @@ model Visita {
   bloqueios      Json      @default("[]")
   avisos         Json      @default("[]")
   comentarioRevisao String?
+  excluidaEm     DateTime?
   revisadoEm     DateTime?
   criadoEm       DateTime  @default(now())
   galpao         Galpao    @relation(fields: [galpaoId], references: [id])

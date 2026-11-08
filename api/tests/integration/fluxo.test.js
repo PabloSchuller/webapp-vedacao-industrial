@@ -55,6 +55,64 @@ test('cadastro, visitas, revisão, evidências, permissões e indisponibilidade'
     assert.ok(r.iaClasse);assert.ok(r.iaVersao);assert.equal(r.status,'REVISAR');
     await req('/visitas',{token:funcionario,method:'POST',body:{...registro(),dataVisita:'2025-12-31'},status:422});
   });
+  await t.test('exclusão lógica, permissões, auditoria e consultas operacionais',async()=>{
+    const {PrismaClient}=await import('@prisma/client');
+    const db=new PrismaClient();
+    try {
+      const g=await req('/galpoes',{token:dono,method:'POST',status:201,body:{...dados,nome:'Teste de exclusão'}});
+      const criar=async()=> (await req('/visitas',{token:funcionario,method:'POST',status:201,body:{
+        galpaoId:g.id,dataVisita:'2026-01-02',descricao:'Vedação parcial na visita de exclusão.',
+        gpsLatitude:0,gpsLongitude:0,registroFisico:{situacao:'TRABALHO_EXECUTADO',servicos:[{nome:'Selagem'}],
+          materiaisUtilizados:[{nome:'PU',quantidade:2}]}
+      }})).visita;
+      const motivo='Registro duplicado na visita';
+      const excluir=(id,token,status,justificativa=motivo)=>req('/visitas/'+id,{token,method:'DELETE',status,body:{motivo:justificativa}});
+      const revisar=(id,decisao,status=200)=>req('/visitas/'+id+'/revisar',{token:dono,method:'PATCH',status,body:{decisao,comentario:'Conferido no teste'}});
+      const v=await criar();
+      const url='/visitas/'+v.id;
+      assert.equal(v.revisao,'PENDENTE');
+      await excluir(v.id,funcionario,403);
+      await excluir(v.id,dono,400,'   ');
+      const anexo={nome:'teste.png',mime:'image/png',dadosBase64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII='};
+      const foto=await req(url+'/fotos',{token:dono,method:'POST',status:201,body:anexo});
+      const rotulo={classe:'TRABALHO_EXECUTADO'};
+      await req(url+'/rotulo',{token:dono,method:'PUT',body:rotulo});
+      const consulta={where:{id:v.id},include:{fotos:true,rotuloHumano:true}};
+      const antes=await db.visita.findUnique(consulta);
+      await excluir(v.id,dono,200);
+      await excluir(v.id,dono,409);
+      await revisar(v.id,'APROVAR',404);
+      await req(url+'/fotos',{token:dono,status:404});
+      await req(url+'/fotos',{token:dono,method:'POST',status:404,body:anexo});
+      await req('/fotos/'+foto.id+'/arquivo',{token:dono,status:404});
+      await req('/fotos/'+foto.id,{token:dono,method:'DELETE',status:404});
+      await req(url+'/rotulo',{token:dono,method:'PUT',status:404,body:rotulo});
+      const depois=await db.visita.findUnique(consulta);
+      assert.ok(depois.excluidaEm);
+      assert.deepEqual({...depois,excluidaEm:null},antes);
+      const get=path=>req(path,{token:dono});
+      const eventos=(await get('/galpoes/'+g.id+'/auditoria')).filter(a=>a.entidadeId===v.id && a.acao==='EXCLUIR');
+      assert.equal(eventos.length,1);
+      assert.equal(eventos[0].usuarioId,(await get('/auth/me')).id);
+      assert.equal(eventos[0].detalhes.motivo,motivo);
+      assert.ok(Date.parse(eventos[0].criadoEm));
+      assert.ok(!(await get('/visitas/pendentes')).some(x=>x.id===v.id));
+      assert.ok(!(await get('/indicadores')).ultimas.some(x=>x.id===v.id));
+      assert.equal((await get('/galpoes/'+g.id)).visitas.length,0);
+      assert.equal((await get('/galpoes')).find(x=>x.id===g.id)._count.visitas,0);
+      for(const path of ['/relatorios/visitas.csv','/relatorios/relatos_rotulados.csv','/relatorios/galpoes/'+g.id+'/imprimir'])
+        assert.ok(!(await get(path)).includes(v.descricao));
+      const rejeitada=await criar();
+      await revisar(rejeitada.id,'REJEITAR');
+      assert.ok((await get('/visitas/rejeitadas')).some(x=>x.id===rejeitada.id));
+      await excluir(rejeitada.id,dono,200);
+      assert.ok(!(await get('/visitas/rejeitadas')).some(x=>x.id===rejeitada.id));
+      const aprovada=await criar();
+      await revisar(aprovada.id,'APROVAR');
+      await excluir(aprovada.id,dono,409);
+      assert.equal((await get('/galpoes/'+g.id)).visitas[0].id,aprovada.id);
+    } finally {await db.$disconnect()}
+  });
   await t.test('visita pendente não altera progresso e impede nova visita/arquivamento',async()=>{
     visita=(await req('/visitas',{token:funcionario,method:'POST',body:registro(),status:201})).visita;
     assert.equal(visita.revisao,'PENDENTE');
