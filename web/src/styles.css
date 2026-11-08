@@ -67,3 +67,28 @@
 .item-visita input {min-width:0; width:100%;}
 .registro-fisico {overflow-wrap:anywhere;}
 @media(max-width:700px){.item-visita {grid-template-columns:1fr 1fr;}}
+
+.pending-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  overflow-wrap: anywhere;
+}
+.review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.review-heading h2 { margin: 0 0 4px; font-size: 18px; }
+.review-heading div > span { color: #546780; font-size: 14px; }
+.review-report { display: grid; gap: 8px; font-size: 15px; line-height: 1.55; }
+.review-report p, .review-report ul { margin: 0; }
+.review-report ul { padding-left: 20px; }
+.pending-card .visit-alert { margin: 0; font-size: 14px; }
+.pending-card .visit-alert svg { margin-top: 2px; }
+.pending-card .visit-alert ul { list-style: none; margin: 0; padding: 0; }
+.pending-card .visit-alert li + li { margin-top: 6px; }
+.review-controls label { font-size: 14px; }
+.pending-card .form-actions { margin: 0; padding-top: 16px; }

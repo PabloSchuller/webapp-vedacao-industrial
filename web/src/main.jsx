@@ -268,7 +268,41 @@ function Pendencias({token,onGo}){
   const[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(''),[reload,setReload]=useState(0),[comentarios,setComentarios]=useState({});
   useEffect(()=>{request('/visitas/pendentes',{token}).then(setData).catch(e=>setError(errorText(e)))},[token,reload]);
   async function decidir(v,decisao){const comentario=(comentarios[v.id]||'').trim();if(comentario.length<3){setError('Informe uma justificativa com pelo menos 3 caracteres.');return;}setBusy(v.id);setError('');try{await request(`/visitas/${v.id}/revisar`,{token,method:'PATCH',body:{decisao,comentario}});setReload(s=>s+1);}catch(e){setError(errorText(e));}finally{setBusy('')}}
-  return <><SectionTitle eyebrow="QUALIDADE DOS DADOS" title="Visitas pendentes" subtitle="Confira os relatos e as medições das visitas sinalizadas."/><ErrorBox message={error}/>{!data?<Loading/>:data.length===0?<div className="empty large-empty"><ShieldCheck size={34}/> Nenhuma visita aguardando revisão.</div>:<div className="pending-list">{data.map(v=><section className="surface pending-card" key={v.id}><div className="pending-head"><div><Pill status="PENDENTE"/><h2>{v.galpao.nome}</h2><span>{v.autor.nome} · {fmtDate(v.dataVisita)}</span></div><HistoricoFisico visita={v}/></div>{v.descricao !== v.registroFisico?.motivo && <p>{v.descricao}</p>}{v.justificativa&&<p><b>Justificativa:</b> {v.justificativa}</p>}<div className="visit-alert"><AlertTriangle size={17}/><div>{v.avisos.map((a,i)=><div key={i}>{a}</div>)}</div></div><label>Justificativa da revisão<textarea value={comentarios[v.id]||''} onChange={e=>setComentarios(c=>({...c,[v.id]:e.target.value}))} minLength={3} maxLength={2000} rows={2}/></label><div className="form-actions"><button className="btn outline" disabled={busy===v.id} onClick={()=>decidir(v,'REJEITAR')}>Rejeitar</button><button className="btn primary" disabled={busy===v.id} onClick={()=>decidir(v,'APROVAR')}><CheckCircle2 size={16}/> Aprovar visita</button></div></section>)}</div>}</>
+  return <>
+    <SectionTitle eyebrow="QUALIDADE DOS DADOS" title="Visitas pendentes" subtitle="Confira os relatos e as medições das visitas sinalizadas."/>
+    <ErrorBox message={error}/>
+    {!data ? <Loading/> : data.length===0 ?
+      <div className="empty large-empty"><ShieldCheck size={34}/> Nenhuma visita aguardando revisão.</div> :
+      <div className="pending-list">{data.map(v=>
+        <section className="surface pending-card" key={v.id} aria-labelledby={`revisao-${v.id}`}>
+          <header className="review-heading">
+            <div>
+              <h2 id={`revisao-${v.id}`}>{v.galpao.nome}</h2>
+              <span>{fmtDate(v.dataVisita)} · {v.autor.nome}</span>
+            </div>
+            <Pill status="PENDENTE"/>
+          </header>
+          <div className="review-report">
+            <HistoricoFisico visita={v}/>
+            {v.descricao !== v.registroFisico?.motivo && <p>{v.descricao}</p>}
+            {v.justificativa && <p><b>Justificativa:</b> {v.justificativa}</p>}
+          </div>
+          {v.avisos.length>0 && <div className="visit-alert">
+            <AlertTriangle size={18} aria-hidden="true"/>
+            <ul>{v.avisos.map((aviso,i)=><li key={i}>{aviso}</li>)}</ul>
+          </div>}
+          <div className="form review-controls">
+            <label>Justificativa da revisão
+              <textarea rows={3} minLength={3} maxLength={2000} value={comentarios[v.id]||''}
+                onChange={e=>setComentarios(c=>({...c,[v.id]:e.target.value}))}/>
+            </label>
+            <div className="form-actions">
+              <button className="btn outline" disabled={busy===v.id} onClick={()=>decidir(v,'REJEITAR')}>Rejeitar</button>
+              <button className="btn primary" disabled={busy===v.id} onClick={()=>decidir(v,'APROVAR')}><CheckCircle2 size={16}/> Aprovar visita</button>
+            </div>
+          </div>
+        </section>)}</div>}
+  </>
 }
 export function App(){
   const[sess,setSess]=useState(()=>{try{return JSON.parse(sessionStorage.getItem('vedacao_session')||'null')}catch{return null}});
