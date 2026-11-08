@@ -40,6 +40,16 @@ test('cadastro, visitas, revisão, evidências, permissões e indisponibilidade'
     assert.equal((await req(`/galpoes/${galpao.id}`,{token:dono})).progressoAtual,0);
   });
   const registro=()=>({galpaoId:galpao.id,dataVisita:'2026-01-02',descricao:'Nenhuma atividade foi realizada por falta de materiais.',progressoDepois:40});
+  await t.test('validação híbrida de execução parcial e serviço explicitamente negado',async()=>{
+    const validar=descricao=>req('/visitas/validar',{token:funcionario,method:'POST',body:{
+      galpaoId:galpao.id,dataVisita:'2026-01-02',descricao,
+      registroFisico:{situacao:'TRABALHO_EXECUTADO',servicos:[{nome:'Aplicação de P.U.'}]}
+    }});
+    const parcial=await validar('Foi feito 24 placas das 30 que faltam, sobraram 6 placas para fazer.');
+    assert.equal(parcial.iaClasse,'TRABALHO_EXECUTADO');
+    assert.equal(parcial.status,'APROVAR');
+    assert.equal((await validar('Limpamos as gretas, mas não aplicamos P.U.')).status,'REVISAR');
+  });
   await t.test('validação real Node → scikit-learn e bloqueio objetivo',async()=>{
     const r=await req('/visitas/validar',{token:funcionario,method:'POST',body:registro()});
     assert.ok(r.iaClasse);assert.ok(r.iaVersao);assert.equal(r.status,'REVISAR');

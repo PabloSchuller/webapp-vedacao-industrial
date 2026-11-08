@@ -4,6 +4,8 @@ from hashlib import sha256
 import joblib
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from typing import Annotated
+from contexto import evidencia_servicos
 
 BASE=Path(__file__).resolve().parent
 MODEL_PATH=BASE / 'modelos' / 'modelo.joblib'
@@ -13,6 +15,7 @@ _model_version=None
 
 class Registro(BaseModel):
     descricao:str=Field(min_length=10,max_length=3000)
+    servicos:list[Annotated[str, Field(min_length=1,max_length=160)]]=Field(default_factory=list,max_length=100)
     percentual_anterior:float | None=Field(default=None,ge=0,le=100)
     percentual_atual:float | None=Field(default=None,ge=0,le=100)
 
@@ -37,9 +40,12 @@ def analisar(registro,modelo):
     if registro.percentual_atual is not None and registro.percentual_anterior is not None:
         delta=registro.percentual_atual-registro.percentual_anterior
     avisos=[]
+    corroborada, conflito = evidencia_servicos(registro.descricao, registro.servicos)
+    if conflito:
+        avisos.append(conflito)
     # Alertas independentes: baixa confiança não pode ocultar contradições.
     # Limiares experimentais; revisar contra registros reais anotados.
-    if confianca<0.55:
+    if confianca<0.55 and not corroborada:
         avisos.append('Relato com baixa confiança do modelo; revisão humana recomendada.')
     if classe=='SEM_EXECUCAO' and delta is not None and delta>0:
         avisos.append('Relato indica ausência de execução, mas o progresso aumentou.')
@@ -47,7 +53,7 @@ def analisar(registro,modelo):
         avisos.append('Relato indica trabalho executado, mas o progresso não avançou.')
     if classe=='INDEFINIDO' and delta is not None and delta>=30:
         avisos.append('Avanço elevado sem descrição conclusiva de execução; conferir evidências.')
-    return {'classificacao_ia':classe,'score_modelo':confianca,'avisos':avisos,'versao_modelo':_model_version or 'modelo-de-teste',
+    return {'classificacao_ia':classe,'score_modelo':confianca,'execucao_corroborada':corroborada,'avisos':avisos,'versao_modelo':_model_version or 'modelo-de-teste',
             'probabilidades':{str(c):round(float(p),4) for c,p in zip(modelo.classes_,chances)}}
 
 @app.get('/saude')

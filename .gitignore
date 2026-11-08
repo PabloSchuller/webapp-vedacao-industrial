@@ -32,6 +32,8 @@ avaliacao/*.json
 ia/modelos/
 *.csv
 !ia/dados/visitas_sinteticas.csv
+!ia/dados/complemento_treino.csv
+!avaliacao/modelos/teste_campo_sintetico.csv
 .DS_Store
 publicacao/
 

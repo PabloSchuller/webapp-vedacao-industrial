@@ -12,6 +12,7 @@
 **/*.log
 **/*.csv
 !dados/visitas_sinteticas.csv
+!dados/complemento_treino.csv
 modelos
 backups
 artifacts
