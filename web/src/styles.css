@@ -62,7 +62,8 @@
 
 .itens-visita {min-width:0; border:1px solid #d9e1e6; border-radius:8px; padding:12px;}
 .itens-visita legend {font-weight:600;}
-.item-visita {display:grid; grid-template-columns:2fr 1fr 1fr auto; align-items:end; gap:8px; margin-bottom:10px;}
+.item-visita {display:grid; grid-template-columns:2fr 1fr auto; align-items:end; gap:8px; margin-bottom:10px;}
+.item-visita.servico {grid-template-columns:1fr auto;}
 .item-visita input {min-width:0; width:100%;}
 .registro-fisico {overflow-wrap:anywhere;}
 @media(max-width:700px){.item-visita {grid-template-columns:1fr 1fr;}}

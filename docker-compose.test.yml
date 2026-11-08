@@ -24,7 +24,7 @@ services:
       DATABASE_URL: postgresql://teste:${TEST_DB_PASSWORD:?}@postgres:5432/vedacao_test?schema=public
       IA_URL: http://ia:8000
       JWT_SECRET: ${TEST_JWT_SECRET:?}
-      DEMO_SEED: 'true'
+      DEMO_SEED: 'false'
       DEMO_OWNER_PASSWORD: ${TEST_OWNER_PASSWORD:?}
       DEMO_EMPLOYEE_PASSWORD: ${TEST_EMPLOYEE_PASSWORD:?}
     volumes:

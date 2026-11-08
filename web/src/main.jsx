@@ -208,20 +208,19 @@ function AuditoriaGalpao({token,id}){
 }
 
 function VisitaForm({token,galpao,onSaved}){
-  const[form,setForm]=useState({galpaoId:galpao.id,dataVisita:today(),descricao:'',registroFisico:novoRegistro(),proximosPassos:'',gpsLatitude:null,gpsLongitude:null});
+  const[form,setForm]=useState({galpaoId:galpao.id,dataVisita:today(),descricao:'',registroFisico:novoRegistro(),gpsLatitude:null,gpsLongitude:null});
   const[pre,setPre]=useState(null),[erro,setErro]=useState(''),[busy,setBusy]=useState(false),[locationInfo,setLocationInfo]=useState('');
   const set=(k,v)=>{setPre(null);setForm(f=>({...f,[k]:v}));};
   function geo(){if(!navigator.geolocation)return setLocationInfo('O navegador não oferece geolocalização.');setLocationInfo('Obtendo GPS…');navigator.geolocation.getCurrentPosition(p=>{set('gpsLatitude',p.coords.latitude);set('gpsLongitude',p.coords.longitude);setLocationInfo('GPS obtido: confira a distância e a precisão antes de enviar.');},()=>setLocationInfo('Localização negada ou indisponível. É possível salvar sem GPS.'),{enableHighAccuracy:true,timeout:10000});}
   const registro = form.registroFisico;
   const semExecucao = registro.situacao === 'SEM_EXECUCAO';
-  const descricao = semExecucao ? registro.motivo : form.descricao;
+  const descricao = form.descricao;
   async function call(path) {
     setBusy(true);
     setErro('');
     try {
       const registroFisico = {...registro,
-        servicos: registro.situacao === 'TRABALHO_EXECUTADO' ? registro.servicos : [],
-        motivo: semExecucao ? registro.motivo : ''
+        servicos: registro.situacao === 'TRABALHO_EXECUTADO' ? registro.servicos : []
       };
       const d = await request(path, {token, method:'POST', body:{...form, descricao, registroFisico}});
       if (path.endsWith('/validar')) setPre(d);
@@ -234,10 +233,10 @@ function VisitaForm({token,galpao,onSaved}){
   return <div className="form visita-form"><div className="form-two"><label>Data da visita<input type="date" value={form.dataVisita} onChange={e=>set('dataVisita',e.target.value)} required/></label></div>
     <CamposFisicos registro={registro} onChange={r => set('registroFisico',r)}/>
     <label>{semExecucao ? 'Motivo da ausência de execução' : 'Relato da visita'} *
-      <textarea rows={3} minLength={10} maxLength={semExecucao ? 2000 : 3000} value={descricao}
-        placeholder="Descreva a ocorrência em pelo menos 10 caracteres."
-        onChange={e => semExecucao ? set('registroFisico',{...registro,motivo:e.target.value}) : set('descricao',e.target.value)}/>
-    </label><label>O que falta fazer / próximos passos<textarea rows="2" value={form.proximosPassos} onChange={e=>set('proximosPassos',e.target.value)} placeholder="Ex.: vedar a fachada leste e revisar as juntas da cobertura"/></label><button type="button" className="btn outline align-left" onClick={geo}><Navigation size={15}/> Adicionar localização GPS</button>{locationInfo&&<p className="field-note">{locationInfo}</p>}<ErrorBox message={erro}/>{pre&&<div className={`validation-box ${pre.status==='BLOQUEAR'?'red':pre.status==='REVISAR'?'yellow':'ok'}`}><strong>{pre.status==='APROVAR'?'Nenhuma inconsistência sinalizada':pre.status==='REVISAR'?'Revisão do responsável necessária':'Registro bloqueado'}</strong><span>Classificação IA: {pre.iaClasse||'Indisponível'} · Confiança estimada: {pre.iaConfianca==null?'—':pct(pre.iaConfianca*100)}</span>{[...pre.bloqueios,...pre.avisos].map((av,i)=><div key={i}>• {av}</div>)}</div>}<div className="form-actions"><button type="button" disabled={busy||descricao.trim().length<10} className="btn outline" onClick={()=>call('/visitas/validar')}><ShieldCheck size={16}/> Validar com IA</button><button type="button" disabled={busy||descricao.trim().length<10||pre?.status==='BLOQUEAR'} className="btn primary" onClick={()=>call('/visitas')}><Plus size={17}/> Salvar visita</button></div><p className="micro-note">A validação será executada novamente no servidor ao salvar. Visitas sinalizadas ficam pendentes até a decisão do responsável.</p></div>
+      <textarea rows={3} minLength={10} maxLength={3000} value={descricao}
+        placeholder="Descreva as atividades, quantidades, locais, materiais e impedimentos."
+        onChange={e => set('descricao',e.target.value)}/>
+    </label><button type="button" className="btn outline align-left" onClick={geo}><Navigation size={15}/> Adicionar localização GPS</button>{locationInfo&&<p className="field-note">{locationInfo}</p>}<ErrorBox message={erro}/>{pre&&<div className={`validation-box ${pre.status==='BLOQUEAR'?'red':pre.status==='REVISAR'?'yellow':'ok'}`}><strong>{pre.status==='APROVAR'?'Nenhuma inconsistência sinalizada':pre.status==='REVISAR'?'Revisão do responsável necessária':'Registro bloqueado'}</strong><span>Classificação IA: {pre.iaClasse||'Indisponível'} · Confiança estimada: {pre.iaConfianca==null?'—':pct(pre.iaConfianca*100)}</span>{[...pre.bloqueios,...pre.avisos].map((av,i)=><div key={i}>• {av}</div>)}</div>}<div className="form-actions"><button type="button" disabled={busy||descricao.trim().length<10} className="btn outline" onClick={()=>call('/visitas/validar')}><ShieldCheck size={16}/> Validar com IA</button><button type="button" disabled={busy||descricao.trim().length<10||pre?.status==='BLOQUEAR'} className="btn primary" onClick={()=>call('/visitas')}><Plus size={17}/> Salvar visita</button></div><p className="micro-note">A validação será executada novamente no servidor ao salvar. Visitas sinalizadas ficam pendentes até a decisão do responsável.</p></div>
 }
 function Detalhe({token,id,onGo,papel,usuario}){
   const[data,setData]=useState(null),[error,setError]=useState(''),[mostrarForm,setMostrarForm]=useState(false),[mostrarAuditoria,setMostrarAuditoria]=useState(false),[reload,setReload]=useState(0),[excluir,setExcluir]=useState(false),[nomeConfirmacao,setNomeConfirmacao]=useState(''),[motivo,setMotivo]=useState(''),[busyExcluir,setBusyExcluir]=useState(false),[erroExcluir,setErroExcluir]=useState(''),[filtroInicio,setFiltroInicio]=useState(''),[filtroFim,setFiltroFim]=useState(''),[filtroStatus,setFiltroStatus]=useState(''),[buscaRelato,setBuscaRelato]=useState('');

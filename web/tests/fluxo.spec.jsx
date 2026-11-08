@@ -35,19 +35,28 @@ test('login inválido mantém o formulário e login válido abre o painel e perm
   expect(sessionStorage.getItem('vedacao_session')).toBeNull();
 });
 
-test('equipe registra quantidade fracionária com unidade e consulta o histórico',()=>{
+test('equipe registra serviços pelo nome e material por quantidade e consulta o histórico',()=>{
   function Tela(){
     const [registro,setRegistro]=React.useState(novoRegistro);
     return <><CamposFisicos registro={registro} onChange={setRegistro}/><aside aria-label="Histórico"><HistoricoFisico visita={{registroFisico:registro}}/></aside></>;
   }
   render(<Tela/>);
   fireEvent.click(screen.getByText('Adicionar serviço'));
-  fireEvent.change(screen.getByLabelText('Nome'),{target:{value:'Parede leste'}});
-  fireEvent.change(screen.getByLabelText('Quantidade'),{target:{value:'2.5'}});
-  fireEvent.change(screen.getByLabelText('Unidade'),{target:{value:'m²'}});
-  expect(within(screen.getByLabelText('Histórico')).getByText('Parede leste — 2.5 m²')).toBeTruthy();
-  fireEvent.click(screen.getByText('Remover'));
-  expect(screen.queryByText('Parede leste — 2.5 m²')).toBeNull();
+  fireEvent.change(screen.getByLabelText('Nome do serviço'),{target:{value:'Aplicação de tarucel'}});
+  expect(screen.queryByLabelText('Quantidade')).toBeNull();
+  fireEvent.click(screen.getByText('Adicionar serviço'));
+  fireEvent.change(screen.getAllByLabelText('Nome do serviço')[1],{target:{value:'Limpeza das gretas'}});
+  const utilizados = within(screen.getByRole('group',{name:'Materiais utilizados'}));
+  fireEvent.click(utilizados.getByText('Adicionar material'));
+  fireEvent.change(utilizados.getByLabelText('Nome'),{target:{value:'Selante'}});
+  fireEvent.change(utilizados.getByLabelText('Quantidade'),{target:{value:'2.5'}});
+  expect(screen.queryByLabelText('Unidade')).toBeNull();
+  const historico = within(screen.getByLabelText('Histórico'));
+  expect(historico.getByText('Aplicação de tarucel')).toBeTruthy();
+  expect(historico.getByText('Limpeza das gretas')).toBeTruthy();
+  expect(historico.getByText('Selante — 2.5')).toBeTruthy();
+  fireEvent.click(utilizados.getByText('Remover'));
+  expect(historico.queryByText('Selante — 2.5')).toBeNull();
 });
 
 function sessaoTeste(){
@@ -78,8 +87,9 @@ test('visita sem execução envia o motivo, recarrega o histórico',async()=>{
   fireEvent.change(screen.getByLabelText('Situação da visita'),{target:{value:'SEM_EXECUCAO'}});
   fireEvent.change(screen.getByLabelText(/Motivo da ausência/),{target:{value:'Entrega de placas atrasada'}});
   fireEvent.click(screen.getByText('Salvar visita'));
-  await screen.findByText(/Motivo: Entrega de placas atrasada/);
-  expect(enviado.registroFisico.motivo).toBe(enviado.descricao);
+  await screen.findByText('Entrega de placas atrasada');
+  expect(enviado.descricao).toBe('Entrega de placas atrasada');
+  expect(enviado.registroFisico.motivo).toBeUndefined();
   expect(enviado.progressoDepois).toBeUndefined();
   expect(screen.queryByText('Editar galpão')).toBeNull();
 });

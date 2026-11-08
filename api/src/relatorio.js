@@ -7,7 +7,11 @@ function registroDaVisita(v) {
   const linhas = [esc(r.situacao)];
   const grupos = {servicos:'Serviços', materiaisUtilizados:'Utilizados', materiaisRestantes:'Restantes', materiaisNecessarios:'Necessários'};
   for (const [campo, titulo] of Object.entries(grupos)) {
-    for (const i of r[campo] ?? []) linhas.push(`${titulo}: ${esc(i.nome)} — ${esc(i.quantidade)} ${esc(i.unidade)}`);
+    for (const i of r[campo] ?? []) {
+      const quantidade = i.quantidade == null ? '' : ` — ${esc(i.quantidade)}`;
+      const unidade = i.unidade ? ` ${esc(i.unidade)}` : '';
+      linhas.push(`${titulo}: ${esc(i.nome)}${quantidade}${unidade}`);
+    }
   }
   if (r.motivo) linhas.push('Motivo: ' + esc(r.motivo));
   if (r.impedimentos) linhas.push('Impedimentos: ' + esc(r.impedimentos));
