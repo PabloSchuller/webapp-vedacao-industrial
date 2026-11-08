@@ -1,0 +1,47 @@
+# EXEMPLO DE ESTRUTURA para servidor particular com HTTPS provido por proxy externo.
+# Não execute sem entender os segredos e os domínios. NÃO publique banco/IA diretamente.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vedacao
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina uma senha forte}
+      POSTGRES_DB: vedacao
+    volumes: [vedacao_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL','pg_isready -U vedacao -d vedacao']
+      interval: 10s
+      retries: 10
+  ia:
+    build: ./ia
+    restart: unless-stopped
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://vedacao:${POSTGRES_PASSWORD:?}@postgres:5432/vedacao?schema=public
+      JWT_SECRET: ${JWT_SECRET:?}
+      IA_URL: http://ia:8000
+      NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-VedacaoHub/4.2 (cadastro de obras; uso interativo)}
+      NOMINATIM_CACHE_FILE: /app/cache/nominatim.json
+      DEMO_SEED: 'false'
+      CORS_ORIGIN: ${CORS_ORIGIN:?Informe https://seudominio}
+    # Provedor público: executar apenas uma instância da API.
+    volumes: [nominatim_cache:/app/cache]
+    command: npm start
+    depends_on: [postgres,ia]
+    # Expor apenas atrás de HTTPS/proxy configurado pelo operador, nunca diretamente à internet.
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:?Informe HTTPS da API}
+        VITE_OSM_TILE_URL: ${VITE_OSM_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
+    depends_on: [api]
+    # Expor apenas através de um reverse proxy TLS.
+volumes:
+  vedacao_pgdata:
+  nominatim_cache:

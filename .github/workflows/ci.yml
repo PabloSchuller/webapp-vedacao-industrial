@@ -1,0 +1,30 @@
+name: Testes, cobertura e build
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verificar segredos nos arquivos versionados
+        run: |
+          mkdir -p "$RUNNER_TEMP/vedacao-scan"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/vedacao-scan"
+          docker run --rm -v "$RUNNER_TEMP/vedacao-scan:/scan:ro" zricethezav/gitleaks@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055 dir /scan --redact --no-banner
+      - name: Executar a suíte isolada e conferir os limites de cobertura
+        run: node scripts/ci.mjs
+      - name: Guardar relatórios de cobertura
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cobertura
+          path: |
+            api/coverage/
+            web/coverage/
+            !**/coverage/tmp/**
+          retention-days: 7
+          if-no-files-found: warn

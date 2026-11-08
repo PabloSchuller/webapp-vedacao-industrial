@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Papel {
+  DONO
+  FUNCIONARIO
+}
+enum EstadoObra {
+  PLANEJADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  PAUSADA
+}
+enum Revisao {
+  APROVADA
+  PENDENTE
+  REJEITADA
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  papel        Papel    @default(FUNCIONARIO)
+  ativo        Boolean  @default(true)
+  tokenVersao   Int      @default(0)
+  criadoEm     DateTime @default(now())
+  visitas      Visita[] @relation("AutorVisita")
+  revisoes     Visita[] @relation("RevisorVisita")
+  auditorias   Auditoria[]
+  fotosCriadas FotoVisita[]
+  rotulosIA    RotuloVisita[]
+  avaliacoes   AvaliacaoTcc[]
+}
+
+model Galpao {
+  id              String    @id @default(uuid())
+  nome            String
+  cliente         String
+  endereco        String
+  latitude        Float?
+  longitude       Float?
+  dataInicio      DateTime  @db.Date
+  status          EstadoObra @default(PLANEJADA)
+  progressoAtual  Float     @default(0)
+  descricao       String?
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  excluidoEm      DateTime?
+  motivoExclusao  String?
+  excluidoPorId   String?
+  visitas         Visita[]
+  @@index([nome])
+  @@index([excluidoEm])
+}
+
+model Visita {
+  id             String    @id @default(uuid())
+  galpaoId       String
+  autorId        String
+  revisorId      String?
+  dataVisita     DateTime  @db.Date
+  descricao      String
+  progressoAntes Float?
+  progressoDepois Float?
+  registroFisico Json?
+  justificativa  String?
+  proximosPassos String?
+  gpsLatitude    Float?
+  gpsLongitude   Float?
+  iaClasse       String?
+  iaConfianca    Float?
+  iaVersao       String?
+  revisao        Revisao   @default(APROVADA)
+  bloqueios      Json      @default("[]")
+  avisos         Json      @default("[]")
+  comentarioRevisao String?
+  revisadoEm     DateTime?
+  criadoEm       DateTime  @default(now())
+  galpao         Galpao    @relation(fields: [galpaoId], references: [id])
+  autor          Usuario   @relation("AutorVisita", fields: [autorId], references: [id])
+  revisor        Usuario?  @relation("RevisorVisita", fields: [revisorId], references: [id])
+  fotos          FotoVisita[]
+  rotuloHumano   RotuloVisita?
+  @@index([galpaoId, dataVisita])
+}
+
+model Auditoria {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  entidade    String
+  entidadeId  String
+  acao        String
+  detalhes    Json
+  criadoEm    DateTime @default(now())
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id])
+  @@index([entidade, entidadeId])
+}
+
+
+// Imagens guardadas no PostgreSQL: sobrevivem à recriação dos contêineres.
+// Exclusão lógica mantém rastreabilidade. Acesso apenas via API autenticada.
+model FotoVisita {
+  id          String   @id @default(uuid())
+  visitaId    String
+  autorId     String
+  nome        String
+  mime        String
+  tamanho     Int
+  dados       Bytes    @db.ByteA
+  criadoEm    DateTime @default(now())
+  excluidaEm  DateTime?
+  visita      Visita   @relation(fields: [visitaId], references: [id])
+  autor       Usuario  @relation(fields: [autorId], references: [id])
+  @@index([visitaId, excluidaEm])
+}
+
+// Rótulo criado por pessoa para avaliação e eventual treino posterior.
+// Não altera, retrospectivamente, a classificação originalmente salva.
+model RotuloVisita {
+  id          String   @id @default(uuid())
+  visitaId    String   @unique
+  usuarioId   String
+  classe      String
+  justificativa String?
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  visita      Visita   @relation(fields: [visitaId], references: [id])
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id])
+}
+
+// Medições realmente coletadas para o estudo de caso (nunca dados seed).
+model AvaliacaoTcc {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  tipo        String
+  dados       Json
+  criadoEm    DateTime @default(now())
+  excluidoEm  DateTime?
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id])
+  @@index([tipo, excluidoEm])
+}

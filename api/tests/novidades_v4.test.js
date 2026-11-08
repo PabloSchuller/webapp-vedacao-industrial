@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validarFoto,MAX_FOTO_BYTES} from '../src/fotos.js';
+import {relatorioGalpao,escaparHtml} from '../src/relatorio.js';
+const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(40)]).toString('base64');
+test('foto PNG válida guarda bytes e nome seguro',()=>{const f=validarFoto({nome:'x.png',mime:'image/png',dadosBase64:png});assert.equal(f.tamanho,48);assert.equal(f.mime,'image/png')});
+test('foto maliciosa rejeitada mesmo com MIME declarado',()=>assert.throws(()=>validarFoto({nome:'test.jpg',mime:'image/jpeg',dadosBase64:png}),/Conteúdo/));
+test('Base64 malformado rejeitado',()=>assert.throws(()=>validarFoto({nome:'x.png',mime:'image/png',dadosBase64:'****'}),/Base64/));
+test('limite de 3 MB aplica-se ao conteúdo decodificado',()=>assert.throws(()=>validarFoto({nome:'x.png',mime:'image/png',dadosBase64:Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(MAX_FOTO_BYTES)]).toString('base64')}),/3 MB/));
+test('relatório escapa HTML inserido pelo usuário',()=>{const h=relatorioGalpao({nome:'<script>alert(1)</script>',cliente:'<b>X</b>',endereco:'&',status:'PLANEJADA',progressoAtual:0,dataInicio:'2026-01-01',visitas:[]});assert.ok(h.includes('&lt;script&gt;'));assert.ok(!h.includes('<script>'));assert.equal(escaparHtml('a&"<'), 'a&amp;&quot;&lt;')});

@@ -1,0 +1,38 @@
+# Executado por scripts/ci.mjs em um projeto novo e dedicado.
+services:
+  postgres:
+    image: postgres:16-alpine
+    tmpfs: [/var/lib/postgresql/data]
+    environment:
+      POSTGRES_USER: teste
+      POSTGRES_DB: vedacao_test
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:?}
+    healthcheck:
+      test: [CMD, pg_isready, -U, teste, -d, vedacao_test]
+      interval: 2s
+      retries: 45
+  ia:
+    build: ./ia
+    volumes: ["./avaliacao:/avaliacao:ro"]
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8000/saude")']
+      interval: 2s
+      retries: 45
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://teste:${TEST_DB_PASSWORD:?}@postgres:5432/vedacao_test?schema=public
+      IA_URL: http://ia:8000
+      JWT_SECRET: ${TEST_JWT_SECRET:?}
+      DEMO_SEED: 'true'
+      DEMO_OWNER_PASSWORD: ${TEST_OWNER_PASSWORD:?}
+      DEMO_EMPLOYEE_PASSWORD: ${TEST_EMPLOYEE_PASSWORD:?}
+    volumes:
+      - ./api/tests:/app/tests:ro
+      - ./api/coverage:/app/coverage
+      - ./scripts:/scripts:ro
+  web:
+    build: ./web
+    volumes:
+      - ./api/src:/api/src:ro
+      - ./web/coverage:/app/coverage
