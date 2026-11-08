@@ -1,8 +1,8 @@
 # Visitas por serviços e materiais
 
-Na tela do galpão, escolha **Registrar visita** e informe a situação observada. Em **Com execução**, registre pelo menos um serviço, por exemplo “Montagem de placas”, quantidade 4, unidade “un”. Paredes, vigas e pilares podem ser descritos da mesma forma, na unidade usada pela equipe. Em **Sem execução**, registre o motivo no próprio relato. **Execução indefinida** permite documentar uma vistoria em que ainda não foi possível determinar se houve serviço.
+Em **Registrar visita**, selecione a situação e escreva o relato. Detalhe nele quantidades de serviço, locais, atividades, materiais, impedimentos e observações. Em **Sem execução**, o próprio relato informa o motivo.
 
-As listas de materiais utilizados, restantes e necessários são independentes. Cada linha guarda nome, quantidade e unidade. Um saldo restante pode ser zero. Serviços, consumo e necessidades exigem quantidades positivas. Impedimentos e próximos passos são campos de texto opcionais. O saldo é o observado na visita, sem dedução automática nem conversão entre unidades.
+As listas são opcionais. Cada serviço adicionado exige apenas **Nome do serviço**, por exemplo “Aplicação de P.U.” ou “Limpeza das gretas”. Para materiais utilizados, restantes e necessários, informe **Nome** e **Quantidade**. O saldo restante aceita zero. Consumo e necessidade exigem valores positivos. As quantidades seguem o controle da empresa, sem conversão.
 
 ## Contrato da API
 
@@ -12,19 +12,18 @@ As listas de materiais utilizados, restantes e necessários são independentes. 
 {
   "galpaoId": "00000000-0000-4000-8000-000000000001",
   "dataVisita": "2026-11-08",
-  "descricao": "A equipe montou quatro placas na parede norte.",
+  "descricao": "A equipe montou quatro placas na parede norte. O acesso à fachada leste estava bloqueado.",
   "registroFisico": {
     "situacao": "TRABALHO_EXECUTADO",
-    "servicos": [{"nome":"Montagem de placas", "quantidade":4, "unidade":"un"}],
-    "materiaisUtilizados": [{"nome":"Selante", "quantidade":1.5, "unidade":"kg"}],
-    "materiaisRestantes": [{"nome":"Placas", "quantidade":0, "unidade":"un"}],
-    "materiaisNecessarios": [{"nome":"Viga de apoio", "quantidade":2, "unidade":"un"}],
-    "impedimentos": "Acesso bloqueado à fachada leste."
+    "servicos": [{"nome":"Montagem de placas"}],
+    "materiaisUtilizados": [{"nome":"Selante", "quantidade":1.5}],
+    "materiaisRestantes": [{"nome":"Placas", "quantidade":0}],
+    "materiaisNecessarios": [{"nome":"Viga de apoio", "quantidade":2}]
   }
 }
 ```
 
-As listas omitidas são vazias. A situação `SEM_EXECUCAO` exige `motivo` e uma lista de serviços vazia. No formulário, o motivo também fornece a descrição textual à IA, com uma única digitação. O relato tem de 10 a 3.000 caracteres, limitado a 2.000 quando usado como motivo. Em `INDEFINIDO`, os materiais e impedimentos podem ser preenchidos, mantendo vazia a lista de serviços confirmados. Cada lista aceita até 100 itens, observando também o limite geral do corpo HTTP de 100 KB.
+As listas omitidas são vazias. Em `SEM_EXECUCAO` ou `INDEFINIDO`, a lista de serviços confirmados deve estar vazia. O relato tem de 10 a 3.000 caracteres e segue para a classificação textual. Cada lista aceita até 100 itens dentro do limite geral do corpo HTTP de 100 KB.
 
 O histórico, a revisão e o relatório imprimível exibem os itens. O CSV de visitas mantém as colunas antigas e acrescenta `registro_fisico_json`. Em visitas físicas, os dois percentuais legados são nulos. Aprovação e rejeição preservam as medições informadas. A situação cadastral do galpão pode ser alterada pelo responsável e fica na auditoria. Continuam valendo as regras de data, autorização, GPS e revisão pendente.
 
@@ -32,22 +31,7 @@ Clientes antigos podem enviar exclusivamente o formato com `progressoDepois`; ne
 
 ## PostgreSQL
 
-A migração `api/prisma/migrations/20261108000000_registro_fisico/migration.sql` acrescenta uma coluna JSONB opcional e torna opcionais os dois campos percentuais da visita. O modelo continua usando os mesmos IDs, relações e registros. A migração cabe em uma transação e dispensa atualização em massa.
-
-Em banco que já usa Prisma Migrate, faça backup antes de `prisma migrate deploy`. A instalação local existente usava `db push` e não tinha histórico Prisma. Nela foi aplicado somente o SQL dessa migração após o backup. Para uma instalação equivalente que **ainda não recebeu essa coluna**, execute na raiz:
-
-```powershell
-$ErrorActionPreference = 'Stop'
-docker compose up -d --wait postgres
-if ($LASTEXITCODE) { throw 'PostgreSQL indisponível' }
-& ./scripts/backup_windows.ps1
-docker compose build api ia web
-if ($LASTEXITCODE) { throw 'Falha na construção' }
-Get-Content -Raw api/prisma/migrations/20261108000000_registro_fisico/migration.sql |
-  docker compose exec -T postgres psql -X --single-transaction -v ON_ERROR_STOP=1 -U vedacao -d vedacao -f -
-if ($LASTEXITCODE) { throw 'Migração não aplicada' }
-docker compose up -d --no-build --wait
-```
+O campo JSONB `Visita.registroFisico` já contém os dados necessários. A simplificação não requer SQL nem alteração de schema. O histórico e a impressão exibem quantidades, unidades, motivos e impedimentos existentes nas visitas antigas. O CSV conserva o JSON original.
 
 ## IA e avaliação
 

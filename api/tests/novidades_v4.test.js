@@ -8,3 +8,15 @@ test('foto maliciosa rejeitada mesmo com MIME declarado',()=>assert.throws(()=>v
 test('Base64 malformado rejeitado',()=>assert.throws(()=>validarFoto({nome:'x.png',mime:'image/png',dadosBase64:'****'}),/Base64/));
 test('limite de 3 MB aplica-se ao conteúdo decodificado',()=>assert.throws(()=>validarFoto({nome:'x.png',mime:'image/png',dadosBase64:Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(MAX_FOTO_BYTES)]).toString('base64')}),/3 MB/));
 test('relatório escapa HTML inserido pelo usuário',()=>{const h=relatorioGalpao({nome:'<script>alert(1)</script>',cliente:'<b>X</b>',endereco:'&',status:'PLANEJADA',progressoAtual:0,dataInicio:'2026-01-01',visitas:[]});assert.ok(h.includes('&lt;script&gt;'));assert.ok(!h.includes('<script>'));assert.equal(escaparHtml('a&"<'), 'a&amp;&quot;&lt;')});
+
+test('impressão preserva a medição antiga e exibe serviços novos só pelo nome',()=>{
+  const registroFisico = {
+    situacao:'TRABALHO_EXECUTADO',
+    servicos:[{nome:'Alinhamento', quantidade:2.5, unidade:'m²'}, {nome:'Limpeza das gretas'}],
+    materiaisRestantes:[{nome:'Selante', quantidade:0}]
+  };
+  const html = relatorioGalpao({visitas:[{registroFisico}]});
+  assert.ok(html.includes('Serviços: Alinhamento — 2.5 m²'));
+  assert.ok(html.includes('Serviços: Limpeza das gretas<br>'));
+  assert.ok(html.includes('Restantes: Selante — 0'));
+});

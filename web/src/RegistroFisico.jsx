@@ -1,7 +1,7 @@
 import React from 'react';
 
 const grupos = [
-  ['servicos', 'Serviços executados', 'Ex.: montagem de placas'],
+  ['servicos', 'Serviços executados', 'Ex.: Aplicação de P.U.'],
   ['materiaisUtilizados', 'Materiais utilizados', 'Ex.: selante'],
   ['materiaisRestantes', 'Materiais restantes', 'Ex.: placas'],
   ['materiaisNecessarios', 'Materiais necessários', 'Ex.: vigas']
@@ -15,26 +15,25 @@ const situacoes = {
 
 export const novoRegistro = () => ({
   situacao: 'TRABALHO_EXECUTADO', servicos: [], materiaisUtilizados: [],
-  materiaisRestantes: [], materiaisNecessarios: [], impedimentos: '', motivo: ''
+  materiaisRestantes: [], materiaisNecessarios: []
 });
 
 function Itens({campo, titulo, exemplo, itens, onChange}) {
+  const servico = campo === 'servicos';
   function editar(indice, propriedade, valor) {
     onChange(itens.map((item, i) => i === indice ? {...item, [propriedade]: valor} : item));
   }
   return <fieldset className="itens-visita">
     <legend>{titulo}</legend>
-    {itens.map((item, i) => <div className="item-visita" key={i}>
-      <label>Nome<input value={item.nome} maxLength={160} placeholder={exemplo}
+    {itens.map((item, i) => <div className={servico ? "item-visita servico" : "item-visita"} key={i}>
+      <label>{servico ? 'Nome do serviço' : 'Nome'}<input value={item.nome} maxLength={160} placeholder={exemplo}
         onChange={e => editar(i, 'nome', e.target.value)}/></label>
-      <label>Quantidade<input type="number" min="0" step="any" value={item.quantidade ?? ''}
-        onChange={e => editar(i, 'quantidade', e.target.value === '' ? null : e.target.valueAsNumber)}/></label>
-      <label>Unidade<input value={item.unidade} maxLength={32} placeholder="un, m, m², kg…"
-        onChange={e => editar(i, 'unidade', e.target.value)}/></label>
+      {!servico && <label>Quantidade<input type="number" min="0" step="any" value={item.quantidade ?? ''}
+        onChange={e => editar(i, 'quantidade', e.target.value === '' ? null : e.target.valueAsNumber)}/></label>}
       <button type="button" className="btn outline" onClick={() => onChange(itens.filter((_, n) => n !== i))}>Remover</button>
     </div>)}
     <button type="button" className="btn outline" disabled={itens.length >= 100}
-      onClick={() => onChange([...itens, {nome:'', quantidade:null, unidade:''}])}>
+      onClick={() => onChange([...itens, servico ? {nome:''} : {nome:'', quantidade:null}])}>
       {campo === 'servicos' ? 'Adicionar serviço' : 'Adicionar material'}
     </button>
   </fieldset>;
@@ -50,8 +49,6 @@ export function CamposFisicos({registro, onChange}) {
     {grupos.filter(([campo]) => campo !== 'servicos' || registro.situacao === 'TRABALHO_EXECUTADO')
       .map(([campo, titulo, exemplo]) => <Itens key={campo} campo={campo} titulo={titulo} exemplo={exemplo}
         itens={registro[campo]} onChange={itens => alterar(campo, itens)}/>)}
-    <label>Impedimentos<textarea rows={2} maxLength={2000} value={registro.impedimentos}
-      onChange={e => alterar('impedimentos', e.target.value)}/></label>
   </>;
 }
 
@@ -64,7 +61,7 @@ export function HistoricoFisico({visita}) {
     {r.motivo && <p>Motivo: {r.motivo}</p>}
     {grupos.filter(([campo]) => r[campo]?.length).map(([campo, titulo]) =>
       <div key={campo}><b>{titulo}</b><ul>{r[campo].map((item, i) =>
-        <li key={i}>{item.nome} — {item.quantidade} {item.unidade}</li>)}</ul></div>)}
+        <li key={i}>{item.nome}{item.quantidade != null && ` — ${item.quantidade}`}{item.unidade && ` ${item.unidade}`}</li>)}</ul></div>)}
     {r.impedimentos && <p>Impedimentos: {r.impedimentos}</p>}
   </div>;
 }

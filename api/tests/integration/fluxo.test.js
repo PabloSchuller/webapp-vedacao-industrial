@@ -135,21 +135,24 @@ test('registro físico persiste quantidades, motivo e revisão sem alterar a med
     dataInicio:'2026-01-01', latitude:-26, longitude:-49
   }});
   const descricao = 'Aplicado selante nas juntas laterais e executada a vedação.';
-  const item = (nome, quantidade, unidade) => ({nome, quantidade, unidade});
-  const registroFisico = {situacao:'TRABALHO_EXECUTADO', servicos:[item('Parede leste',2.5,'m²')],
-    materiaisUtilizados:[item('Selante',1,'kg')], materiaisRestantes:[item('Placa',0,'un')],
-    materiaisNecessarios:[item('Viga',3,'un')], impedimentos:'Acesso parcial ao pilar', motivo:''};
+  const registroFisico = {situacao:'TRABALHO_EXECUTADO', servicos:[{nome:'Limpeza das gretas'},{nome:'Aplicação de P.U.'}],
+    materiaisUtilizados:[{nome:'Selante',quantidade:1.5}], materiaisRestantes:[{nome:'Placa',quantidade:0}],
+    materiaisNecessarios:[{nome:'Viga',quantidade:3}]};
   const body = {galpaoId:g.id, dataVisita:'2026-01-02', descricao, registroFisico, gpsLatitude:0, gpsLongitude:0};
   const post = (data,status) => req('/visitas',{token,method:'POST',status,body:data});
   for (const alteracao of [
-    {servicos:[]}, {servicos:[item('Placa',1,' ')]}, {servicos:[item('Placa',-2,'un')]},
-    {materiaisRestantes:[item('Placa',-1,'un')]}, {situacao:'SEM_EXECUCAO', motivo:'', servicos:[]},
-    {situacao:'SEM_EXECUCAO', motivo:'Chuva na obra'}
+    {servicos:[{nome:'  '}]}, {servicos:[{nome:'Placa',quantidade:1}]},
+    {materiaisRestantes:[{nome:'Placa',quantidade:-1}]}, {materiaisUtilizados:[{nome:'Selante'}]},
+    {materiaisNecessarios:[{nome:'',quantidade:1}]}, {materiaisUtilizados:[{nome:'Selante',quantidade:0}]},
+    {situacao:'SEM_EXECUCAO'}, {situacao:'INDEFINIDO'}
   ]) await post({...body,registroFisico:{...registroFisico,...alteracao}},400);
   await post({...body,progressoDepois:40},400);
   const pre = await req('/visitas/validar',{token,method:'POST',body});
   assert.ok(pre.iaClasse);
   assert.equal(pre.progressoAntes,null);
+  const apenasRelato = await req('/visitas/validar',{token,method:'POST',
+    body:{...body,registroFisico:{situacao:'TRABALHO_EXECUTADO'}}});
+  assert.ok(apenasRelato.iaClasse);
   const {visita} = await post(body,201);
   assert.equal(visita.revisao,'PENDENTE');
   await req('/visitas/'+visita.id+'/revisar',{token,method:'PATCH',body:{decisao:'APROVAR',comentario:'Medição conferida'}});
@@ -170,7 +173,7 @@ test('registro físico persiste quantidades, motivo e revisão sem alterar a med
   assert.equal(detalhe.visitas.find(v => v.id === sem.visita.id).registroFisico.motivo,motivo);
   assert.equal(indef.visita.registroFisico.situacao,'INDEFINIDO');
   const csv = await req('/relatorios/visitas.csv',{token});
-  assert.ok(csv.includes('registro_fisico_json') && csv.includes('Parede leste'));
+  assert.ok(csv.includes('registro_fisico_json') && csv.includes('Limpeza das gretas'));
   const html = await req('/relatorios/galpoes/'+g.id+'/imprimir',{token});
-  assert.ok(html.includes('Parede leste') && html.includes('2.5 m²') && html.includes(motivo));
+  assert.ok(html.includes('Limpeza das gretas') && html.includes('Selante — 1.5') && html.includes(motivo));
 });

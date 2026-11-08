@@ -2,7 +2,7 @@
 
 Aplicação de gestão de obras de vedação industrial do curso de Engenharia de Software da Católica de Santa Catarina. Cada galpão reúne localização, histórico de visitas, fotos e autoria das alterações.
 
-A equipe registra paredes, placas, vigas e pilares por serviço, quantidade e unidade, além de materiais utilizados, restantes ou necessários e impedimentos. Uma visita sem execução guarda o motivo. O histórico recupera também os percentuais informados por versões anteriores. [Contrato das visitas físicas](docs/visitas_fisicas.md)
+A equipe pode listar serviços pelo nome e materiais utilizados, restantes ou necessários pelo nome e quantidade. Locais, quantidades dos serviços e impedimentos ficam no relato da visita. Uma visita sem execução guarda o motivo. O histórico recupera também os percentuais informados por versões anteriores. [Contrato das visitas físicas](docs/visitas_fisicas.md)
 
 ## Arquitetura
 
@@ -32,7 +32,7 @@ O limite global de cobertura de **linhas** é 75% no backend Express e 25% no fr
 
 1. Copie `.env.example` para `.env`. Preencha `POSTGRES_PASSWORD` e `JWT_SECRET` com valores aleatórios independentes. Use 32 bytes aleatórios em hexadecimal para cada um. Defina `CORS_ORIGIN=http://localhost:5173`.
 2. Execute `docker compose build` e `docker compose up -d --wait postgres`.
-3. Para o banco **novo e vazio**, execute `docker compose run --rm --no-deps api npx prisma migrate deploy`. Para um banco preexistente, confira o histórico Prisma e faça backup antes de qualquer migração. [Guia de compatibilidade](docs/visitas_fisicas.md)
+3. Para o banco **novo e vazio**, execute `docker compose run --rm --no-deps api npx prisma migrate deploy`. Para um banco preexistente, confira o histórico Prisma e faça backup antes de qualquer migração. [Contrato de visitas e histórico](docs/visitas_fisicas.md)
 4. Disponibilize `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente do terminal. Execute `docker compose run --rm --no-deps -e ADMIN_EMAIL -e ADMIN_PASSWORD api node prisma/bootstrap-admin.js`. Use uma senha exclusiva e remova as duas variáveis do terminal ao terminar.
 5. Execute `docker compose up -d --wait` e abra http://localhost:5173. O ambiente local usa portas em loopback. O seed demonstrativo é explícito.
 
