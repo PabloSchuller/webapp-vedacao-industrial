@@ -30,6 +30,7 @@ jobs:
             api/coverage/
             web/coverage/
             !**/coverage/tmp/**
+            !**/coverage/unit/tmp/**
           retention-days: 7
           if-no-files-found: warn
   imagens:
