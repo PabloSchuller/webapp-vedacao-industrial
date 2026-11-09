@@ -11,6 +11,7 @@
     "db:seed": "node prisma/seed.js",
     "test": "node --test tests/*.test.js",
     "lint": "eslint src",
+    "coverage:unit": "c8 --all --include=\"src/**/*.js\" --include=\"prisma/*.js\" --reports-dir=coverage/unit --reporter=text --reporter=json-summary --reporter=lcov --check-coverage --lines 75 node --experimental-test-module-mocks --test tests/*.test.js tests/unit/*.test.mjs",
     "coverage": "c8 --all --include=\"src/**/*.js\" --include=\"prisma/*.js\" --reporter=text --reporter=html --reporter=lcov --reporter=json-summary --check-coverage --lines 75 node tests/cobertura.mjs"
   },
   "dependencies": {

@@ -17,6 +17,10 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP/vedacao-scan:/scan:ro" zricethezav/gitleaks@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055 dir /scan --redact --no-banner
       - name: Executar a suíte isolada e conferir os limites de cobertura
         run: node scripts/ci.mjs
+      - name: Verificar sonda e scripts de entrega
+        run: |
+          node --test scripts/tests/monitor.test.mjs
+          for script in ops/*.sh; do bash -n "$script"; done
       - name: Guardar relatórios de cobertura
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -26,5 +30,59 @@ jobs:
             api/coverage/
             web/coverage/
             !**/coverage/tmp/**
+            !**/coverage/unit/tmp/**
           retention-days: 7
           if-no-files-found: warn
+  imagens:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verificar
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api: ${{ steps.build.outputs.api }}
+      web: ${{ steps.build.outputs.web }}
+      ia: ${{ steps.build.outputs.ia }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - id: build
+        run: bash ops/publicar.sh
+        env:
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL || 'https://3-19-67-254.sslip.io/api' }}
+  producao:
+    needs: imagens
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: vedacaohub-producao
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Conferir se a revisão ainda é a ponta da main
+        run: test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Atualizar aplicações na instância e aguardar retorno do SSM
+        run: bash ops/acionar-ssm.sh
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+          API_DIGEST: ${{ needs.imagens.outputs.api }}
+          WEB_DIGEST: ${{ needs.imagens.outputs.web }}
+          IA_DIGEST: ${{ needs.imagens.outputs.ia }}
+      - run: node scripts/monitor.mjs
+        env:
+          PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL || 'https://3-19-67-254.sslip.io/' }}
+          PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL || 'https://3-19-67-254.sslip.io/api/saude' }}

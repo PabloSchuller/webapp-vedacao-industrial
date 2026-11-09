@@ -1,0 +1,20 @@
+name: Disponibilidade pública
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node scripts/monitor.mjs
+        env:
+          PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL || 'https://3-19-67-254.sslip.io/' }}
+          PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL || 'https://3-19-67-254.sslip.io/api/saude' }}

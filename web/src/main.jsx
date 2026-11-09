@@ -75,7 +75,7 @@ function Pill({status}){const map={PLANEJADA:['Planejada','neutral'],EM_ANDAMENT
 function ErrorBox({message}){return message?<div className="feedback danger"><AlertTriangle size={17}/><span>{message}</span></div>:null}
 function Loading(){return <div className="loading"><LoaderCircle className="spin" size={26}/> Carregando dados…</div>}
 function SectionTitle({eyebrow,title,subtitle,action}){return <div className="section-title"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{action&&<div className="title-action">{action}</div>}</div>}
-function Login({onLogin}){
+export function Login({onLogin}){
   const [email,setEmail]=useState('');
   const [senha,setSenha]=useState('');
   const [senhaNova,setSenhaNova]=useState('');
@@ -264,7 +264,7 @@ function LixeiraGalpoes({token,onGo}){
   }
   return <><SectionTitle eyebrow="ADMINISTRAÇÃO" title="Lixeira de galpões" subtitle="Galpões excluídos logicamente. Os dados históricos e a auditoria permanecem guardados." action={<button className="btn outline" onClick={()=>onGo('galpoes')}><ArrowLeft size={16}/> Voltar aos galpões</button>}/><ErrorBox message={erro}/>{lista===null?<Loading/>:lista.length===0?<div className="empty large-empty">Nenhum galpão excluído.</div>:<section className="surface"><div className="items">{lista.map(g=><div key={g.id} className="archived-row"><div><h3>{g.nome}</h3><p>{g.cliente} · {g.endereco}</p><small>Excluído em {fmtDate(g.excluidoEm)} · {g._count?.visitas||0} visita(s) preservadas</small><p><strong>Motivo:</strong> {g.motivoExclusao||'Não informado'}</p></div><button className="btn outline" disabled={busy===g.id} onClick={()=>restaurar(g)}><RotateCcw size={16}/>{busy===g.id?'Restaurando…':'Restaurar'}</button></div>)}</div></section>}</>;
 }
-function Pendencias({token}){
+export function Pendencias({token}){
   const[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(''),[reload,setReload]=useState(0),[comentarios,setComentarios]=useState({});
   const [lista,setLista]=useState('pendentes'),[excluirId,setExcluirId]=useState(null);
   const [motivo,setMotivo]=useState(''),[sucesso,setSucesso]=useState('');
