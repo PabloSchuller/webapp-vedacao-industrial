@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Atualiza somente os tres servicos de aplicacao VedacaoHub",
+  "parameters": {
+    "api": {"type": "String", "allowedPattern": "^sha256:[0-9a-f]{64}$"},
+    "web": {"type": "String", "allowedPattern": "^sha256:[0-9a-f]{64}$"},
+    "ia": {"type": "String", "allowedPattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "mainSteps": [{
+    "action": "aws:runShellScript",
+    "name": "aplicar",
+    "inputs": {
+      "timeoutSeconds": "1200",
+      "runCommand": ["/usr/local/sbin/vedacaohub-release '{{ api }}' '{{ web }}' '{{ ia }}'"]
+    }
+  }]
+}

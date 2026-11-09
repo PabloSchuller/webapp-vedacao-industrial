@@ -15,10 +15,11 @@ function compose(...args) {
 for (const path of ['api','web']) mkdirSync(new URL('../'+path+'/coverage/',import.meta.url),{recursive:true});
 try {
   compose('build','api','web','ia');
+  compose('run','--rm','--no-deps','api','npm','run','coverage:unit');
   compose('up','-d','--wait','--wait-timeout','120','postgres','ia');
   compose('exec','-T','ia','python','-m','pytest','-q','-p','no:cacheprovider','tests','/avaliacao/tests');
   compose('run','--rm','--no-deps','api','sh','-ec','npm run lint && npx prisma migrate deploy && ADMIN_EMAIL=dono@demo.local ADMIN_PASSWORD="$DEMO_OWNER_PASSWORD" node prisma/bootstrap-admin.js && npm run coverage');
-  compose('run','--rm','--no-deps','web','sh','-ec','npm run lint && npm test && npm run coverage && npm run build');
+  compose('run','--rm','--no-deps','web','sh','-ec','npm run lint && npm test && npm run coverage:unit && npm run coverage && npm run build');
 } finally {
   compose('down');
 }
