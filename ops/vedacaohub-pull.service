@@ -1,0 +1,13 @@
+[Unit]
+Description=Verificar release testada do VedacaoHub
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vedacaohub-pull
+TimeoutStartSec=25min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only

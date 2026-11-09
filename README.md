@@ -42,4 +42,4 @@ O uso do Nominatim público exige uma única instância da API para o limite glo
 
 ## Publicação em nuvem
 
-O workflow da main encadeia testes, publicação de imagens por SHA e atualização da EC2 via OIDC e Systems Manager. A configuração da conta e os critérios para comprovar a primeira entrega estão no [procedimento de implantação](docs/wiki/deploy.md). Os resultados das suítes unitárias independentes ficam em `api/coverage/unit/` e `web/coverage/unit/`.
+O workflow da main testa o código e publica uma release com os digests no GHCR. A EC2 consulta essa release por um timer systemd. A instalação e os critérios para comprovar a primeira entrega estão no [procedimento de implantação](docs/wiki/deploy.md). Os resultados das suítes unitárias independentes ficam em `api/coverage/unit/` e `web/coverage/unit/`.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Consultar nova release do VedacaoHub
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+Unit=vedacaohub-pull.service
+
+[Install]
+WantedBy=timers.target
