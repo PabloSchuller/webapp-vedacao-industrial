@@ -8,4 +8,4 @@ Configure a primeira conta administrativa de forma privada. Use `DEMO_SEED=false
 
 Mantenha uma única API para a fila do Nominatim público, com atribuição visível e contato da aplicação. Para múltiplas instâncias, é preciso coordenar o limite global ou contratar/hospedar o serviço de geocodificação. A aplicação envia ao provedor o endereço pesquisado. Revise privacidade e disponibilidade conforme o uso pretendido.
 
-A CI cobre o ambiente de teste em Docker. Domínio, credenciais de produção, validação externa e eventual contratação de infraestrutura ficam a cargo do responsável pelo ambiente. Nenhum deploy é acionado pelo workflow. [Segredos no Docker Compose](https://docs.docker.com/compose/how-tos/use-secrets/)
+Para a EC2 já instalada, siga o [procedimento de deploy automatizado](wiki/deploy.md). A CI usa PostgreSQL descartável e a entrega da main reutiliza o projeto Compose e o volume existentes. [Segredos no Docker Compose](https://docs.docker.com/compose/how-tos/use-secrets/)

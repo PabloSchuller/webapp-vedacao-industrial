@@ -1,5 +1,7 @@
 # VedaçãoHub
 
+[Acessar o sistema](https://3-19-67-254.sslip.io/) · [Wiki técnica](docs/wiki/README.md) · [Auditoria da linha Web Apps](docs/wiki/conformidade.md)
+
 Aplicação de gestão de obras de vedação industrial do curso de Engenharia de Software da Católica de Santa Catarina. Cada galpão reúne localização, histórico de visitas, fotos e autoria das alterações.
 
 A equipe pode listar serviços pelo nome e materiais utilizados, restantes ou necessários pelo nome e quantidade. Locais, quantidades dos serviços e impedimentos ficam no relato da visita. Uma visita sem execução guarda o motivo. O histórico recupera também os percentuais informados por versões anteriores. [Contrato das visitas físicas](docs/visitas_fisicas.md)
@@ -40,4 +42,4 @@ O uso do Nominatim público exige uma única instância da API para o limite glo
 
 ## Publicação em nuvem
 
-O arquivo `docker-compose.prod.example.yml` documenta serviços e suas configurações. A publicação do sistema exige provisionamento e validação em ambiente próprio. [Avaliação de implantação](docs/nuvem.md)
+O workflow da main encadeia testes, publicação de imagens por SHA e atualização da EC2 via OIDC e Systems Manager. A configuração da conta e os critérios para comprovar a primeira entrega estão no [procedimento de implantação](docs/wiki/deploy.md). Os resultados das suítes unitárias independentes ficam em `api/coverage/unit/` e `web/coverage/unit/`.
